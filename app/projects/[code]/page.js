@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import CostForm from '@/app/components/CostForm';
 import TotalsCard, { formatAmount } from '@/app/components/TotalsCard';
+import Tag from '@/app/components/Tag';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
@@ -205,24 +206,30 @@ export default function ProjectDetailPage({ params }) {
 
               {showReceipted && receipted.map((exp, i) => (
                 <div key={exp.id} style={{
-                  display: 'flex', gap: space.md, alignItems: 'flex-start',
                   padding: `${space.md}px 0`,
                   borderTop: `1px solid ${color.border}`,
                   marginTop: i === 0 ? space.md : 0,
                 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: font.size.sm, fontWeight: 500 }}>
-                      {exp.description || exp.category || exp.id}
+                  <div style={{ display: 'flex', gap: space.md, alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: font.size.sm, fontWeight: 500 }}>
+                        {exp.description || exp.category || exp.id}
+                      </div>
+                      <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
+                        {formatIsoDate(exp.date)}{exp.payeeName ? ` · ${exp.payeeName}` : ''}
+                      </div>
                     </div>
-                    <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 3 }}>
-                      {formatIsoDate(exp.date)}
-                      {exp.payeeName ? ` · ${exp.payeeName}` : ''}
-                      {exp.status === 'pending' ? ' · pending review' : ''}
-                    </div>
+                    <div style={{
+                      fontSize: font.size.md, fontWeight: 500,
+                      fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                    }}>{formatAmount(exp.amount)}</div>
                   </div>
-                  <div style={{
-                    fontSize: font.size.md, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-                  }}>{formatAmount(exp.amount)}</div>
+
+                  <div style={{ display: 'flex', gap: space.sm, marginTop: space.sm, flexWrap: 'wrap' }}>
+                    <Tag variant="receipted">Receipted</Tag>
+                    {exp.category && <Tag variant="neutral">{exp.category}</Tag>}
+                    {exp.status === 'pending' && <Tag variant="notInvoiced">Pending review</Tag>}
+                  </div>
                 </div>
               ))}
             </section>
@@ -236,45 +243,42 @@ export default function ProjectDetailPage({ params }) {
 function CostRow({ cost, first, busy, onToggle }) {
   return (
     <div style={{
-      display: 'flex', gap: space.md, alignItems: 'center',
       padding: `${space.md}px 0`,
       borderTop: first ? 'none' : `1px solid ${color.border}`,
       opacity: busy ? 0.5 : 1,
     }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: space.sm, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: font.size.sm, fontWeight: 500 }}>
+      <div style={{ display: 'flex', gap: space.md, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: font.size.sm, fontWeight: 500 }}>
             {cost.categoryName || cost.categoryCode}
-          </span>
-          <span style={{
-            fontSize: 11, color: color.muted, background: color.bg,
-            padding: '1px 7px', borderRadius: radius.pill,
-          }}>{TYPE_LABEL[cost.costType] || cost.costType}</span>
+          </div>
+          <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
+            {formatIsoDate(cost.date)}{cost.description ? ` · ${cost.description}` : ''}
+          </div>
         </div>
-        <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 3 }}>
-          {formatIsoDate(cost.date)}{cost.description ? ` · ${cost.description}` : ''}
-        </div>
+        <div style={{
+          fontSize: font.size.md, fontWeight: 500,
+          fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+        }}>{formatAmount(cost.amount)}</div>
       </div>
 
+      {/* Tags sit on their own line so long categories never squeeze them off-screen */}
       <div style={{
-        fontSize: font.size.md, fontVariantNumeric: 'tabular-nums',
-        flexShrink: 0, textAlign: 'right',
-      }}>{formatAmount(cost.amount)}</div>
+        display: 'flex', gap: space.sm, marginTop: space.sm,
+        flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        <Tag variant={cost.costType}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
 
-      <button
-        onClick={onToggle}
-        disabled={busy}
-        aria-pressed={cost.invoiced}
-        aria-label={cost.invoiced ? 'Mark as not invoiced' : 'Mark as invoiced'}
-        style={{
-          flexShrink: 0, width: 78, padding: '7px 0',
-          borderRadius: radius.pill, cursor: busy ? 'default' : 'pointer',
-          fontSize: 11, fontWeight: 600, fontFamily: font.stack,
-          border: `1.5px solid ${cost.invoiced ? color.success : color.border}`,
-          background: cost.invoiced ? color.successLight : color.surface,
-          color: cost.invoiced ? color.success : color.muted,
-        }}
-      >{cost.invoiced ? '✓ Invoiced' : 'Not yet'}</button>
+        <Tag
+          variant={cost.invoiced ? 'invoiced' : 'notInvoiced'}
+          onClick={onToggle}
+          disabled={busy}
+          pressed={cost.invoiced}
+          ariaLabel={cost.invoiced ? 'Mark as not invoiced' : 'Mark as invoiced'}
+        >{cost.invoiced ? '✓ Invoiced' : 'Not invoiced'}</Tag>
+
+        <span style={{ fontSize: 10, color: color.subtle }}>tap to change</span>
+      </div>
     </div>
   );
 }
