@@ -18,6 +18,7 @@ No test suite yet — verification is manual against the spreadsheet.
 ### 0.4.0 — 2026-08-09
 
 [Added]
+- Cost form preselects Material (`DEFAULT_COST_TYPE`), the most common entry.
 - `Project costs` tab wired up: `GET/POST /api/costs`, cost entry form, and a per-project cost list newest-first.
 - Costs carry both a type (material/labour/transport) and a category from the Categories tab; both required.
 - Validation on write: known cost type, live category, positive amount under $1,000,000, real calendar date.

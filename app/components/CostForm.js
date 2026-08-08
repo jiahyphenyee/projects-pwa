@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { COST_TYPES } from '@/lib/constants';
+import { COST_TYPES, DEFAULT_COST_TYPE } from '@/lib/constants';
 import { todayLocal } from '@/lib/dates';
 import { button, color, font, input, radius, space } from '@/lib/theme';
 
 export default function CostForm({ project, userName, onSaved, onCancel }) {
   const [date, setDate]         = useState(todayLocal);
-  const [costType, setCostType] = useState('');
+  const [costType, setCostType] = useState(DEFAULT_COST_TYPE);
   const [category, setCategory] = useState('');
   const [description, setDesc]  = useState('');
   const [amount, setAmount]     = useState('');
