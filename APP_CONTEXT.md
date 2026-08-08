@@ -14,6 +14,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/google.js` | Service-account auth and a memoised Sheets client. |
 | `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
 | `lib/constants.js` | Shared constants. Never tab names — those come from `getTab()`. |
+| `lib/useProjects.js` | Stale-while-revalidate project cache + `searchProjects()`. The single source of project data on the client. |
+| `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
 | `lib/session.js` | `localStorage` session with expiry. |
 | `lib/theme.js` | Design tokens for inline styles. |
 | `public/` | Manifest, icons, service worker. |

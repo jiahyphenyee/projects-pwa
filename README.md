@@ -15,6 +15,16 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.2.0 — 2026-08-08
+
+[Added]
+- `GET /api/projects` returning the whole project list in one read.
+- Home screen: recently-opened projects (falling back to the newest 5 when there's no history), instant search across address, client and code, and links to the full list and project creation.
+- Full project list at `/projects` with client-side paging, 50 per page.
+- Project detail at `/projects/[code]` showing address, client, status and dates.
+- Stale-while-revalidate project cache in `localStorage` (`lib/useProjects.js`) — screens render instantly from cache and refresh in the background, and survive a failed fetch.
+- Per-user recents in `localStorage` (`lib/recents.js`), with a change event so the home screen updates even when the router keeps it mounted.
+
 ### 0.1.0 — 2026-08-08
 
 [Added]
