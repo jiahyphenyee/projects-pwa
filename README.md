@@ -15,6 +15,13 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.2.1 — 2026-08-08
+
+[Changed]
+- PIN entry now uses a real focusable input instead of a custom on-screen keypad, so a physical keyboard works and mobile raises the numeric keypad on tap.
+- The header name opens a menu (showing role and days left on the session) rather than logging out on a single tap.
+- Project search ignores punctuation and spacing — `0990` finds `#09-90`.
+
 ### 0.2.0 — 2026-08-08
 
 [Added]

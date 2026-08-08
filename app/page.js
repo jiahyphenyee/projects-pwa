@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveUser, getUser } from '@/lib/session';
 import { color, font, radius, space, shadow } from '@/lib/theme';
-
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 
 export default function LoginPage() {
   const [pin, setPin]         = useState('');
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
+  const router   = useRouter();
 
   useEffect(() => {
     if (getUser()) router.replace('/home');
@@ -34,23 +34,22 @@ export default function LoginPage() {
         setError(data.error || 'Incorrect PIN');
         setPin('');
         setLoading(false);
+        inputRef.current?.focus();
       }
     } catch {
       setError('No connection. Check your internet.');
       setPin('');
       setLoading(false);
+      inputRef.current?.focus();
     }
   }, [router]);
 
-  function press(key) {
+  function handleChange(e) {
     if (loading) return;
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+    setPin(digits);
     setError('');
-    if (key === '⌫') { setPin(p => p.slice(0, -1)); return; }
-    if (!key || pin.length >= 4) return;
-
-    const next = pin + key;
-    setPin(next);
-    if (next.length === 4) submit(next);
+    if (digits.length === 4) submit(digits);
   }
 
   return (
@@ -84,51 +83,74 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* PIN dots */}
-      <div style={{ display: 'flex', gap: space.md, marginBottom: space.lg }} aria-live="polite">
-        {[0, 1, 2, 3].map(i => (
-          <span key={i} style={{
-            width: 14, height: 14, borderRadius: '50%',
-            background: i < pin.length ? color.primary : 'transparent',
-            border: `2px solid ${i < pin.length ? color.primary : color.border}`,
-            transition: 'background 120ms ease',
-          }} />
-        ))}
-      </div>
+      {/* The boxes are only a display. A real input sits invisibly on top so both the
+          on-screen keyboard and a physical keyboard work, and tapping focuses it. */}
+      <label
+        style={{ position: 'relative', display: 'block', cursor: 'text' }}
+        aria-label="PIN"
+      >
+        <input
+          ref={inputRef}
+          type="tel"
+          inputMode="numeric"
+          autoComplete="off"
+          autoFocus
+          value={pin}
+          onChange={handleChange}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          disabled={loading}
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            opacity: 0, border: 'none', background: 'transparent',
+            // >=16px stops iOS zooming the page on focus
+            fontSize: 16, color: 'transparent', caretColor: 'transparent',
+          }}
+        />
+        <div style={{ display: 'flex', gap: space.md, pointerEvents: 'none' }}>
+          {[0, 1, 2, 3].map(i => {
+            const filled = i < pin.length;
+            const active = focused && i === pin.length && !loading;
+            return (
+              <span key={i} style={{
+                width: 52, height: 60,
+                borderRadius: radius.md,
+                background: color.surface,
+                border: `2px solid ${active ? color.primary : filled ? color.primary : color.border}`,
+                boxShadow: shadow.card,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'border-color 120ms ease',
+              }}>
+                {filled && (
+                  <span style={{
+                    width: 12, height: 12, borderRadius: '50%', background: color.primary,
+                  }} />
+                )}
+              </span>
+            );
+          })}
+        </div>
+      </label>
 
       <div style={{
-        height: 20, marginBottom: space.md, fontSize: font.size.sm,
-        color: error ? color.danger : color.muted,
+        height: 22, marginTop: space.lg, fontSize: font.size.sm,
+        color: error ? color.danger : color.muted, textAlign: 'center',
       }}>
         {loading ? 'Checking…' : error}
       </div>
 
-      {/* Keypad */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 72px)', gap: space.md,
-      }}>
-        {KEYS.map((key, i) => key === '' ? <span key={i} /> : (
-          <button
-            key={i}
-            onClick={() => press(key)}
-            disabled={loading}
-            style={{
-              height:       72,
-              borderRadius: '50%',
-              border:       `1px solid ${color.border}`,
-              background:   key === '⌫' ? 'transparent' : color.surface,
-              boxShadow:    key === '⌫' ? 'none' : shadow.card,
-              fontSize:     key === '⌫' ? 20 : 26,
-              fontWeight:   400,
-              color:        color.text,
-              cursor:       loading ? 'default' : 'pointer',
-              opacity:      loading ? 0.5 : 1,
-              fontFamily:   font.stack,
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >{key}</button>
-        ))}
-      </div>
+      {!focused && !loading && (
+        <button
+          onClick={() => inputRef.current?.focus()}
+          style={{
+            marginTop: space.sm, background: 'transparent', border: 'none',
+            color: color.primary, fontSize: font.size.sm, cursor: 'pointer',
+            fontFamily: font.stack, padding: space.sm,
+          }}
+        >
+          Tap to enter PIN
+        </button>
+      )}
     </main>
   );
 }
