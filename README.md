@@ -15,6 +15,17 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.4.0 — 2026-08-09
+
+[Added]
+- `Project costs` tab wired up: `GET/POST /api/costs`, cost entry form, and a per-project cost list newest-first.
+- Costs carry both a type (material/labour/transport) and a category from the Categories tab; both required.
+- Validation on write: known cost type, live category, positive amount under $1,000,000, real calendar date.
+
+[Fixed]
+- Cost rows landed at row 1001+ instead of after the data, because the invoiced checkbox column makes every row look occupied to the Sheets append API. Replaced with `writeAfterLast()`.
+- Cost dates sorted as display text, so `10 Aug` ordered before `9 Aug`. Costs are now read numerically and normalised to ISO.
+
 ### 0.3.0 — 2026-08-09
 
 [Added]

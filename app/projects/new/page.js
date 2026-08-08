@@ -6,19 +6,13 @@ import AppShell from '@/app/components/AppShell';
 import { invalidateProjectsCache } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
+import { todayLocal } from '@/lib/dates';
 import { button, card, color, font, input, radius, space } from '@/lib/theme';
-
-function today() {
-  // Local date, not UTC — toISOString() would roll back a day for a Singapore evening
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 export default function NewProjectPage() {
   const [address, setAddress]     = useState('');
   const [clientName, setClient]   = useState('');
-  const [startDate, setStartDate] = useState(today);
+  const [startDate, setStartDate] = useState(todayLocal);
   const [clients, setClients]     = useState([]);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');

@@ -12,9 +12,12 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `app/api/` | Route handlers — the only place that touches Google Sheets. |
 | `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen. |
 | `lib/google.js` | Service-account auth and a memoised Sheets client. |
-| `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
+| `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `writeAfterLast`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
 | `lib/constants.js` | Shared constants. Never tab names — those come from `getTab()`. |
-| `lib/useProjects.js` | Stale-while-revalidate project cache + `searchProjects()`. The single source of project data on the client. |
+| `lib/useProjects.js` | Stale-while-revalidate project cache + prebuilt search index. The single source of project data on the client. |
+| `lib/projects.js` | Server-side project creation (works around the protected column C). |
+| `lib/costs.js` | Server-side cost CRUD against the `Project costs` tab. |
+| `lib/dates.js` | ISO/serial date conversion and Singapore timestamps. Vercel runs UTC, so timezone is explicit. |
 | `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
 | `lib/session.js` | `localStorage` session with expiry. |
 | `lib/theme.js` | Design tokens for inline styles. |
@@ -29,6 +32,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Always quote tab names in A1 ranges.** `'Project costs'!A:O` is valid; `Project costs!A:O` is a 400. Use `range()`.
 - **Every string written to Sheets goes through `safe()`.** A leading `= + - @ |` is otherwise parsed as a formula.
 - **`Projects` column C (`client_id`) is a protected, self-populating column.** It auto-fills `=IFERROR(INDEX(Contacts!A:A, MATCH(D<row>, Contacts!B:B, 0)), "")`, deriving the ID *from* `client_name` in column D — the reverse of what `SYSTEM_REFERENCE.md` claims. Never write to it: it is both unnecessary and blocked by a protected range named "autofilled". Write `A:B` and `D:K` around it.
+- **Never `appendRow()` into a tab with a checkbox column.** A checkbox reports `FALSE` in every formatted row even when empty, so the API's table detection thinks the table is 1000 rows long and writes below it — outside the date/currency formatting, where dates land as text. Narrowing the search range does not help; detection looks at whole rows. Use `writeAfterLast()` on `Project costs`, and verify the readback since its row choice is not atomic.
+- **Read numerically whenever values are sorted or summed** — `readTab(..., { raw: true })`. Formatted reads give display strings, and `"10 Aug 2026"` sorts before `"9 Aug 2026"`. Cost dates are normalised to ISO via `sheetDateToIso()` and formatted for display with `formatIsoDate()`.
 - **Never use `insertDataOption: 'INSERT_ROWS'` on `Projects`.** Inserting a row is a structural change affecting every column, so it fails against the protected column C even when writing only A:B. `appendRow()` uses the default OVERWRITE, which writes into existing blank rows.
 - **Rows in `Projects` cannot be deleted via the API** for the same reason. Clear `A:B` and `D:K` instead, leaving C's formula.
 - **IDs are max+1 over existing IDs** (`nextId()`), never a row count. Codes are non-contiguous.
@@ -39,6 +44,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 
 - **This app makes no Xero API calls.** The `Expenses` tab is read-only to it. Receipted expenses reach Xero through the sibling `expense-pwa`.
 - **`GEN-000` is excluded from every cross-project rollup.** It is the general company expense bucket and is browsable like any project, but counting it in aggregates inflates project costs with overheads. Apply the exclusion in `lib/rollups.js` only.
+- **A project with no client is a direct company job**, not incomplete data. Never treat a blank `client_name`/`client_id` as an error or prompt to fix it; in client-based rollups these belong to the company itself, not to an "unknown client" bucket.
 - **`display_address` is immutable** once a project has linked rows — it is stored denormalised across timesheets, expenses and invoices.
 
 **Code**
