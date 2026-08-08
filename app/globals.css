@@ -1,17 +1,18 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Minimal reset. All component styling is inline via lib/theme.js tokens.
+   This app commits to a single light appearance — it is an internal tool used
+   in daylight on site, and a half-supported dark mode is worse than none. */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
 html {
   height: 100%;
+  color-scheme: light;
+  /* Stop iOS inflating text in landscape */
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -22,19 +23,10 @@ body {
 
 body {
   min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #f5f6f7;
+  color: #1a1d21;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
 }
 
 a {
@@ -42,8 +34,12 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+button {
+  font: inherit;
+}
+
+/* Visible focus for keyboard users without ringing every tap on touch */
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
 }
