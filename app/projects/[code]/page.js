@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import CostForm from '@/app/components/CostForm';
+import TotalsCard, { formatAmount } from '@/app/components/TotalsCard';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
@@ -13,21 +14,21 @@ import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const TYPE_LABEL = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
 
-function formatAmount(n) {
-  return n.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export default function ProjectDetailPage({ params }) {
   // Next 16: params is a Promise, unwrapped with use() in client components
   const { code: rawCode } = use(params);
   const code = decodeURIComponent(rawCode);
 
   const { projects, loading: projectsLoading } = useProjects();
-  const [userName, setUserName] = useState('');
-  const [costs, setCosts]       = useState([]);
-  const [costsLoading, setCL]   = useState(true);
-  const [costsError, setCE]     = useState('');
-  const [adding, setAdding]     = useState(false);
+  const [userName, setUserName]   = useState('');
+  const [costs, setCosts]         = useState([]);
+  const [receipted, setReceipted] = useState([]);
+  const [totals, setTotals]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [adding, setAdding]       = useState(false);
+  const [pendingId, setPending]   = useState(null);
+  const [showReceipted, setShowR] = useState(false);
   const router = useRouter();
 
   const project = useMemo(
@@ -41,21 +42,47 @@ export default function ProjectDetailPage({ params }) {
     if (userName && project) recordRecent(userName, project.code);
   }, [userName, project]);
 
-  const loadCosts = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
       const res  = await fetch(`/api/costs?project=${encodeURIComponent(code)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not load costs');
       setCosts(data.costs);
-      setCE('');
+      setReceipted(data.receipted);
+      setTotals(data.totals);
+      setError('');
     } catch (err) {
-      setCE(err.message === 'Failed to fetch' ? 'Offline — costs unavailable' : err.message);
+      setError(err.message === 'Failed to fetch' ? 'Offline — costs unavailable' : err.message);
     } finally {
-      setCL(false);
+      setLoading(false);
     }
   }, [code]);
 
-  useEffect(() => { loadCosts(); }, [loadCosts]);
+  useEffect(() => { load(); }, [load]);
+
+  // Optimistic toggle: the row flips immediately, and reverts if the write fails
+  async function toggleInvoiced(cost) {
+    const next = !cost.invoiced;
+    setPending(cost.id);
+    setCosts(prev => prev.map(c => c.id === cost.id ? { ...c, invoiced: next } : c));
+
+    try {
+      const res  = await fetch('/api/costs', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id: cost.id, invoiced: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update');
+      setCosts(prev => prev.map(c => c.id === cost.id ? data.cost : c));
+      await load();
+    } catch (err) {
+      setCosts(prev => prev.map(c => c.id === cost.id ? { ...c, invoiced: cost.invoiced } : c));
+      setError(err.message === 'Failed to fetch' ? 'Offline — change not saved' : err.message);
+    } finally {
+      setPending(null);
+    }
+  }
 
   const isGeneral = code === GENERAL_PROJECT_CODE;
 
@@ -80,22 +107,27 @@ export default function ProjectDetailPage({ params }) {
 
       {project && (
         <>
-          <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
-            {isGeneral && (
-              <div style={{
-                background: color.accentLight, color: color.accent,
-                padding: `${space.sm}px ${space.md}px`, borderRadius: radius.md,
-                fontSize: font.size.xs, marginBottom: space.md,
-              }}>
-                General company costs. Excluded from cross-project totals.
-              </div>
-            )}
-            <Detail label="Client"  value={project.clientName || 'Direct company job'} />
-            <Detail label="Status"  value={project.status || '—'} />
-            <Detail label="Started" value={project.startDate || '—'} />
-          </section>
+          {isGeneral && (
+            <div style={{
+              background: color.accentLight, color: color.accent,
+              padding: `${space.sm}px ${space.md}px`, borderRadius: radius.md,
+              fontSize: font.size.xs, marginBottom: space.lg,
+            }}>
+              General company costs. Excluded from cross-project totals.
+            </div>
+          )}
 
-          <section style={{ ...card, padding: space.lg }}>
+          {error && (
+            <p style={{
+              padding: `${space.sm}px ${space.md}px`, marginBottom: space.lg,
+              background: color.accentLight, color: color.accent,
+              borderRadius: radius.md, fontSize: font.size.sm,
+            }}>{error}</p>
+          )}
+
+          {!loading && <TotalsCard totals={totals} />}
+
+          <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
             <header style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               marginBottom: adding || costs.length ? space.md : 0,
@@ -106,10 +138,7 @@ export default function ProjectDetailPage({ params }) {
               {!adding && (
                 <button
                   onClick={() => setAdding(true)}
-                  style={{
-                    ...button.primary,
-                    padding: '9px 14px', fontSize: font.size.sm,
-                  }}
+                  style={{ ...button.primary, padding: '9px 14px', fontSize: font.size.sm }}
                 >+ Add</button>
               )}
             </header>
@@ -123,46 +152,94 @@ export default function ProjectDetailPage({ params }) {
                   project={project}
                   userName={userName}
                   onCancel={() => setAdding(false)}
-                  onSaved={cost => {
-                    setCosts(prev => [cost, ...prev]);
-                    setAdding(false);
-                  }}
+                  onSaved={() => { setAdding(false); load(); }}
                 />
               </div>
             )}
 
-            {costsError && (
-              <p style={{ fontSize: font.size.sm, color: color.accent, margin: `${space.sm}px 0` }}>
-                {costsError}
-              </p>
+            {loading && (
+              <p style={{ fontSize: font.size.sm, color: color.muted, margin: 0 }}>Loading…</p>
             )}
 
-            {costsLoading && (
-              <p style={{ fontSize: font.size.sm, color: color.muted, margin: 0 }}>Loading costs…</p>
-            )}
-
-            {!costsLoading && costs.length === 0 && !adding && (
+            {!loading && costs.length === 0 && !adding && (
               <p style={{ fontSize: font.size.sm, color: color.muted, margin: `${space.md}px 0 0` }}>
                 No costs recorded yet.
               </p>
             )}
 
             {costs.map((cost, i) => (
-              <CostRow key={cost.id} cost={cost} first={i === 0} />
+              <CostRow
+                key={cost.id}
+                cost={cost}
+                first={i === 0}
+                busy={pendingId === cost.id}
+                onToggle={() => toggleInvoiced(cost)}
+              />
             ))}
           </section>
+
+          {receipted.length > 0 && (
+            <section style={{ ...card, padding: space.lg }}>
+              <button
+                onClick={() => setShowR(o => !o)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', background: 'transparent', border: 'none',
+                  padding: 0, cursor: 'pointer', fontFamily: font.stack, color: color.text,
+                }}
+              >
+                <span style={{ fontSize: font.size.md, fontWeight: 600 }}>
+                  Receipted ({receipted.length})
+                </span>
+                <span style={{ fontSize: font.size.sm, color: color.muted }}>
+                  {formatAmount(totals?.receiptedTotal)} {showReceipted ? '▴' : '▾'}
+                </span>
+              </button>
+
+              <p style={{
+                margin: `${space.sm}px 0 0`, fontSize: font.size.xs, color: color.muted,
+              }}>
+                From the Expenses tab, submitted through the expense app. Read-only here —
+                rejected claims are excluded.
+              </p>
+
+              {showReceipted && receipted.map((exp, i) => (
+                <div key={exp.id} style={{
+                  display: 'flex', gap: space.md, alignItems: 'flex-start',
+                  padding: `${space.md}px 0`,
+                  borderTop: `1px solid ${color.border}`,
+                  marginTop: i === 0 ? space.md : 0,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: font.size.sm, fontWeight: 500 }}>
+                      {exp.description || exp.category || exp.id}
+                    </div>
+                    <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 3 }}>
+                      {formatIsoDate(exp.date)}
+                      {exp.payeeName ? ` · ${exp.payeeName}` : ''}
+                      {exp.status === 'pending' ? ' · pending review' : ''}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: font.size.md, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                  }}>{formatAmount(exp.amount)}</div>
+                </div>
+              ))}
+            </section>
+          )}
         </>
       )}
     </AppShell>
   );
 }
 
-function CostRow({ cost, first }) {
+function CostRow({ cost, first, busy, onToggle }) {
   return (
     <div style={{
-      display: 'flex', gap: space.md, alignItems: 'flex-start',
+      display: 'flex', gap: space.md, alignItems: 'center',
       padding: `${space.md}px 0`,
       borderTop: first ? 'none' : `1px solid ${color.border}`,
+      opacity: busy ? 0.5 : 1,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: space.sm, flexWrap: 'wrap' }}>
@@ -179,28 +256,25 @@ function CostRow({ cost, first }) {
         </div>
       </div>
 
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: font.size.md, fontVariantNumeric: 'tabular-nums' }}>
-          {formatAmount(cost.amount)}
-        </div>
-        <div style={{
-          fontSize: 11, marginTop: 3,
-          color: cost.invoiced ? color.success : color.accent,
-        }}>
-          {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
-        </div>
-      </div>
-    </div>
-  );
-}
+      <div style={{
+        fontSize: font.size.md, fontVariantNumeric: 'tabular-nums',
+        flexShrink: 0, textAlign: 'right',
+      }}>{formatAmount(cost.amount)}</div>
 
-function Detail({ label, value }) {
-  return (
-    <div style={{ display: 'flex', gap: space.md, padding: `${space.sm}px 0` }}>
-      <span style={{ fontSize: font.size.sm, color: color.muted, width: 90, flexShrink: 0 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: font.size.sm, flex: 1, minWidth: 0 }}>{value}</span>
+      <button
+        onClick={onToggle}
+        disabled={busy}
+        aria-pressed={cost.invoiced}
+        aria-label={cost.invoiced ? 'Mark as not invoiced' : 'Mark as invoiced'}
+        style={{
+          flexShrink: 0, width: 78, padding: '7px 0',
+          borderRadius: radius.pill, cursor: busy ? 'default' : 'pointer',
+          fontSize: 11, fontWeight: 600, fontFamily: font.stack,
+          border: `1.5px solid ${cost.invoiced ? color.success : color.border}`,
+          background: cost.invoiced ? color.successLight : color.surface,
+          color: cost.invoiced ? color.success : color.muted,
+        }}
+      >{cost.invoiced ? '✓ Invoiced' : 'Not yet'}</button>
     </div>
   );
 }

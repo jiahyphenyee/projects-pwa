@@ -17,6 +17,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/useProjects.js` | Stale-while-revalidate project cache + prebuilt search index. The single source of project data on the client. |
 | `lib/projects.js` | Server-side project creation (works around the protected column C). |
 | `lib/costs.js` | Server-side cost CRUD against the `Project costs` tab. |
+| `lib/expenses.js` | READ-ONLY view of the receipted `Expenses` tab. Never writes. |
+| `lib/rollups.js` | All cost aggregation, and the `GEN-000` exclusion rule. |
 | `lib/dates.js` | ISO/serial date conversion and Singapore timestamps. Vercel runs UTC, so timezone is explicit. |
 | `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
 | `lib/session.js` | `localStorage` session with expiry. |
@@ -43,6 +45,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 **Business rules**
 
 - **This app makes no Xero API calls.** The `Expenses` tab is read-only to it. Receipted expenses reach Xero through the sibling `expense-pwa`.
+- **Per-project receipted spend can only come from the `Expenses` tab, never from Xero.** Xero carries no project dimension — its only tracking category is `Service` (trade), and the live bill references do not contain a `PRJ-` code. `project_code` exists as a real column in Sheets only.
+- **Rejected expenses are excluded from project totals** (the company is not carrying that cost); pending ones are included, since the money was spent and only the review is outstanding.
 - **`GEN-000` is excluded from every cross-project rollup.** It is the general company expense bucket and is browsable like any project, but counting it in aggregates inflates project costs with overheads. Apply the exclusion in `lib/rollups.js` only.
 - **A project with no client is a direct company job**, not incomplete data. Never treat a blank `client_name`/`client_id` as an error or prompt to fix it; in client-based rollups these belong to the company itself, not to an "unknown client" bucket.
 - **`display_address` is immutable** once a project has linked rows — it is stored denormalised across timesheets, expenses and invoices.

@@ -15,6 +15,14 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.5.0 — 2026-08-09
+
+[Added]
+- Totals card per project: non-receipted costs split into invoiced / not invoiced, receipted subtotal, and a combined project total.
+- Invoiced toggle on each cost line (`PATCH /api/costs`), stamping `invoiced_date` on tick and clearing it on untick. Optimistic, reverting if the write fails.
+- Collapsible read-only "Receipted" section reading the `Expenses` tab. Rejected claims excluded; pending ones included.
+- `lib/rollups.js` — all aggregation in one place, including the `GEN-000` cross-project exclusion.
+
 ### 0.4.0 — 2026-08-09
 
 [Added]
