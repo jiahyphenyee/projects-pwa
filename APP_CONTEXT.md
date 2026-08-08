@@ -28,7 +28,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Never hardcode a tab name.** Use `getTab('PROJECT_COSTS')`. Tab names live in `System config` as `TAB_*` keys and may be renamed without code changes.
 - **Always quote tab names in A1 ranges.** `'Project costs'!A:O` is valid; `Project costs!A:O` is a 400. Use `range()`.
 - **Every string written to Sheets goes through `safe()`.** A leading `= + - @ |` is otherwise parsed as a formula.
-- **`Projects` column C (`client_id`) is a formula** deriving the ID from `client_name` in column D — the reverse of what `SYSTEM_REFERENCE.md` claims. Never plain-append to `Projects`; write an explicit row range and re-inject the formula with the correct row number.
+- **`Projects` column C (`client_id`) is a protected, self-populating column.** It auto-fills `=IFERROR(INDEX(Contacts!A:A, MATCH(D<row>, Contacts!B:B, 0)), "")`, deriving the ID *from* `client_name` in column D — the reverse of what `SYSTEM_REFERENCE.md` claims. Never write to it: it is both unnecessary and blocked by a protected range named "autofilled". Write `A:B` and `D:K` around it.
+- **Never use `insertDataOption: 'INSERT_ROWS'` on `Projects`.** Inserting a row is a structural change affecting every column, so it fails against the protected column C even when writing only A:B. `appendRow()` uses the default OVERWRITE, which writes into existing blank rows.
+- **Rows in `Projects` cannot be deleted via the API** for the same reason. Clear `A:B` and `D:K` instead, leaving C's formula.
 - **IDs are max+1 over existing IDs** (`nextId()`), never a row count. Codes are non-contiguous.
 - **Dates are written as ISO `YYYY-MM-DD` with `USER_ENTERED`.** The workbook locale is `en_US`, so ambiguous formats parse wrongly. Timestamps are written as ISO 8601 *with offset* so Sheets leaves them as text.
 - **Never delete rows in tabs this app does not own** (`Projects`, `Expenses`, `Contacts`, `Categories`). Hard delete is permitted only in `Project costs`, and only via `deleteCost()`.

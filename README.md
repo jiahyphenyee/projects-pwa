@@ -15,6 +15,16 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.3.0 — 2026-08-09
+
+[Added]
+- `POST /api/projects` creating a project: address mirrored into `project_name`, optional client validated against Contacts, start date defaulting to today, status `active`.
+- `GET /api/reference` returning client contacts and active categories in one call.
+- New project form at `/projects/new`, with duplicate-address detection offering "open existing" or "create anyway".
+
+[Fixed]
+- Writes now work around the `Projects` tab's protected column C: `appendRow` no longer inserts rows, and column C is left to auto-fill itself.
+
 ### 0.2.1 — 2026-08-08
 
 [Changed]

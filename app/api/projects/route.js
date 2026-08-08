@@ -2,6 +2,7 @@
 // client searches and pages it locally — no per-keystroke round trips.
 
 import { getTab, readTab } from '@/lib/sheets';
+import { createProject } from '@/lib/projects';
 
 // Projects tab column order
 const COL = {
@@ -43,5 +44,27 @@ export async function GET() {
   } catch (err) {
     console.error('Projects read error:', err.message);
     return Response.json({ error: 'Could not load projects' }, { status: 500 });
+  }
+}
+
+export async function POST(req) {
+  try {
+    const body   = await req.json();
+    const result = await createProject({
+      displayAddress: body.displayAddress,
+      clientName:     body.clientName,
+      startDate:      body.startDate,
+      force:          body.force === true,
+    });
+
+    if (!result.ok) {
+      const { status, ...rest } = result;
+      return Response.json(rest, { status: status || 400 });
+    }
+    return Response.json(result);
+
+  } catch (err) {
+    console.error('Project create error:', err.message);
+    return Response.json({ error: 'Could not create the project' }, { status: 500 });
   }
 }
