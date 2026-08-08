@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import ProjectRow from '@/app/components/ProjectRow';
-import { useProjects, searchProjects } from '@/lib/useProjects';
+import { useProjects } from '@/lib/useProjects';
 import { resolveRecents, RECENTS_CHANGED } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { button, card, color, font, input, radius, space } from '@/lib/theme';
 
 export default function HomePage() {
-  const { projects, loading, error } = useProjects();
+  const { projects, search, loading, error } = useProjects();
   const [query, setQuery] = useState('');
   const [userName, setUserName] = useState('');
   const [recentsTick, setRecentsTick] = useState(0);
@@ -30,8 +30,8 @@ export default function HomePage() {
   }, []);
 
   const results = useMemo(
-    () => (query.trim() ? searchProjects(projects, query).slice(0, 20) : []),
-    [projects, query]
+    () => (query.trim() ? search(query).slice(0, 20) : []),
+    [search, query]
   );
 
   // Recents resolve against localStorage, so only compute once userName is known

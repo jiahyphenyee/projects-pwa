@@ -8,14 +8,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import ProjectRow from '@/app/components/ProjectRow';
-import { useProjects, searchProjects } from '@/lib/useProjects';
+import { useProjects } from '@/lib/useProjects';
 import { getUser } from '@/lib/session';
 import { button, card, color, font, input, radius, space } from '@/lib/theme';
 
 const PAGE_SIZE = 50;
 
 export default function AllProjectsPage() {
-  const { projects, loading, error } = useProjects();
+  const { search, loading, error } = useProjects();
   const [query, setQuery] = useState('');
   const [page, setPage]   = useState(1);
   const [userName, setUserName] = useState('');
@@ -24,10 +24,7 @@ export default function AllProjectsPage() {
   useEffect(() => { setUserName(getUser()?.name || ''); }, []);
 
   // Newest first — sheet order is creation order
-  const filtered = useMemo(() => {
-    const matched = searchProjects(projects, query);
-    return [...matched].reverse();
-  }, [projects, query]);
+  const filtered = useMemo(() => [...search(query)].reverse(), [search, query]);
 
   useEffect(() => { setPage(1); }, [query]);
 

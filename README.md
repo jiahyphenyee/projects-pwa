@@ -18,6 +18,7 @@ No test suite yet — verification is manual against the spreadsheet.
 ### 0.2.1 — 2026-08-08
 
 [Changed]
+- Search now runs against a precomputed index (`buildSearchIndex`) instead of normalising every field on every keystroke — ~14x faster, and flat as the list grows.
 - PIN entry now uses a real focusable input instead of a custom on-screen keypad, so a physical keyboard works and mobile raises the numeric keypad on tap.
 - The header name opens a menu (showing role and days left on the session) rather than logging out on a single tap.
 - Project search ignores punctuation and spacing — `0990` finds `#09-90`.
