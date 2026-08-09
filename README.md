@@ -16,6 +16,12 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.8.0 — 2026-08-09
+
+[Added]
+- `docs/DEPLOY.md` — environment variables, the private-key gotcha, and post-deploy checks.
+- `docs/SYSTEM_REFERENCE_CORRECTIONS.md` — nine verified corrections to the master operations doc, plus the `Project costs` schema.
+
 ### 0.7.0 — 2026-08-09
 
 [Added]
