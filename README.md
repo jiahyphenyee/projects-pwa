@@ -18,6 +18,7 @@ No test suite yet — verification is manual against the spreadsheet.
 ### 0.5.0 — 2026-08-09
 
 [Added]
+- Shared `LineRow` component so cost rows and receipted rows use identical typography and spacing.
 - "Mark N as invoiced" bulk action per project, applied as one batched write and skipping rows already invoiced.
 - Invoiced toggle is a labelled checkbox with a 44px tap target, replacing an 11px pill that was too small to hit and did not read as interactive.
 - Colour-coded tags on every row: cost type (material/labour/transport), invoiced state, and a Receipted marker on expense rows. Shared `Tag` component in `app/components/Tag.js`.

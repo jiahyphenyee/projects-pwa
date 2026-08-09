@@ -6,6 +6,7 @@ import AppShell from '@/app/components/AppShell';
 import CostForm from '@/app/components/CostForm';
 import TotalsCard, { formatAmount } from '@/app/components/TotalsCard';
 import Tag from '@/app/components/Tag';
+import LineRow from '@/app/components/LineRow';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
@@ -244,34 +245,25 @@ export default function ProjectDetailPage({ params }) {
                 rejected claims are excluded.
               </p>
 
-              {showReceipted && receipted.map((exp, i) => (
-                <div key={exp.id} style={{
-                  padding: `${space.md}px 0`,
-                  borderTop: `1px solid ${color.border}`,
-                  marginTop: i === 0 ? space.md : 0,
-                }}>
-                  <div style={{ display: 'flex', gap: space.md, alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: font.size.sm, fontWeight: 500 }}>
-                        {exp.description || exp.category || exp.id}
-                      </div>
-                      <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
-                        {formatIsoDate(exp.date)}{exp.payeeName ? ` · ${exp.payeeName}` : ''}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: font.size.md, fontWeight: 500,
-                      fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-                    }}>{formatAmount(exp.amount)}</div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: space.sm, marginTop: space.sm, flexWrap: 'wrap' }}>
-                    <Tag variant="receipted">Receipted</Tag>
-                    {exp.category && <Tag variant="neutral">{exp.category}</Tag>}
-                    {exp.status === 'pending' && <Tag variant="notInvoiced">Pending review</Tag>}
-                  </div>
+              {showReceipted && (
+                <div style={{ marginTop: space.md }}>
+                  {receipted.map((exp, i) => (
+                    <LineRow
+                      key={exp.id}
+                      label={exp.description || exp.category || exp.id}
+                      amount={formatAmount(exp.amount)}
+                      meta={`${formatIsoDate(exp.date)}${exp.payeeName ? ` · ${exp.payeeName}` : ''}`}
+                      tags={
+                        <>
+                          <Tag variant="receipted">Receipted</Tag>
+                          {exp.category && <Tag variant="neutral">{exp.category}</Tag>}
+                          {exp.status === 'pending' && <Tag variant="notInvoiced">Pending review</Tag>}
+                        </>
+                      }
+                    />
+                  ))}
                 </div>
-              ))}
+              )}
             </section>
           )}
         </>
@@ -286,35 +278,21 @@ function CostRow({ cost, first, busy, onToggle }) {
   const label = cost.description || cost.categoryName || cost.categoryCode;
 
   return (
-    <div style={{
-      padding: `${space.sm}px 0`,
-      borderTop: first ? 'none' : `1px solid ${color.border}`,
-      opacity: busy ? 0.5 : 1,
-    }}>
-      <div style={{ display: 'flex', gap: space.md, alignItems: 'baseline' }}>
-        <div style={{ flex: 1, minWidth: 0, fontSize: font.size.sm, fontWeight: 500 }}>
-          {label}
-        </div>
-        <div style={{
-          fontSize: font.size.sm, fontWeight: 600,
-          fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-        }}>{formatAmount(cost.amount)}</div>
-      </div>
-
-      <div style={{
-        display: 'flex', gap: space.sm, marginTop: space.xs,
-        alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
+    <LineRow
+      first={first}
+      dimmed={busy}
+      label={label}
+      amount={formatAmount(cost.amount)}
+      meta={formatIsoDate(cost.date)}
+      tags={
+        <>
           <Tag variant={cost.costType}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
           <Tag variant="neutral">{cost.categoryName || cost.categoryCode}</Tag>
-          <span style={{ fontSize: font.size.xs, color: color.subtle }}>
-            {formatIsoDate(cost.date)}
-          </span>
-        </div>
-
-        {/* Plain by design: this is a state you glance at, not a call to action. The
-            tick carries the meaning; colour would compete with the type tags. */}
+        </>
+      }
+      action={
+        // Plain by design: this is a state you glance at, not a call to action. The
+        // tick carries the meaning; colour would compete with the type tags.
         <button
           onClick={onToggle}
           disabled={busy}
@@ -339,7 +317,7 @@ function CostRow({ cost, first, busy, onToggle }) {
           }}>{cost.invoiced ? '✓' : ''}</span>
           {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
         </button>
-      </div>
-    </div>
+      }
+    />
   );
 }

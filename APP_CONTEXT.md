@@ -54,5 +54,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 **Code**
 
 - JavaScript, not TypeScript. App Router. `@/` alias. Inline styles from `lib/theme.js` — no CSS framework.
+- **List rows go through `app/components/LineRow.js`**, and tags through `Tag.js`. Both lists sit on one screen, so writing bespoke row markup lets typography drift. Change spacing or sizing there, once.
+- **Never size text with a raw number.** Use `font.size.*` from `lib/theme.js`.
 - Next.js 16: `params` is a Promise (`await params`, or `use(params)` in client components). Route handlers are uncached by default.
 - Read `AGENTS.md` before writing framework code — the installed Next version may differ from training data.
