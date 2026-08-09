@@ -11,7 +11,7 @@ import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
-import { button, card, color, font, radius, space, tag as tagPalette } from '@/lib/theme';
+import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const TYPE_LABEL = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
 
@@ -30,6 +30,7 @@ export default function ProjectDetailPage({ params }) {
   const [adding, setAdding]       = useState(false);
   const [pendingId, setPending]   = useState(null);
   const [showReceipted, setShowR] = useState(false);
+  const [bulkBusy, setBulkBusy]   = useState(false);
   const router = useRouter();
 
   const project = useMemo(
@@ -82,6 +83,28 @@ export default function ProjectDetailPage({ params }) {
       setError(err.message === 'Failed to fetch' ? 'Offline — change not saved' : err.message);
     } finally {
       setPending(null);
+    }
+  }
+
+  const unbilledCount = costs.filter(c => !c.invoiced).length;
+
+  // Bulk marking is hard to undo one row at a time, so it asks first
+  async function markAllInvoiced() {
+    if (!confirm(`Mark all ${unbilledCount} outstanding ${unbilledCount === 1 ? 'cost' : 'costs'} on this project as invoiced?`)) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch('/api/costs', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ all: true, projectCode: code, invoiced: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update');
+      await load();
+    } catch (err) {
+      setError(err.message === 'Failed to fetch' ? 'Offline — nothing was changed' : err.message);
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -177,6 +200,23 @@ export default function ProjectDetailPage({ params }) {
                 onToggle={() => toggleInvoiced(cost)}
               />
             ))}
+
+            {unbilledCount > 0 && (
+              <button
+                onClick={markAllInvoiced}
+                disabled={bulkBusy}
+                style={{
+                  ...button.secondary,
+                  width: '100%', marginTop: space.md,
+                  fontSize: font.size.sm,
+                  opacity: bulkBusy ? 0.5 : 1,
+                }}
+              >
+                {bulkBusy
+                  ? 'Marking…'
+                  : `Mark ${unbilledCount} as invoiced`}
+              </button>
+            )}
           </section>
 
           {receipted.length > 0 && (
@@ -241,57 +281,61 @@ export default function ProjectDetailPage({ params }) {
 }
 
 function CostRow({ cost, first, busy, onToggle }) {
+  // Description is what identifies the cost to a human; category is metadata, so it
+  // sits in a tag alongside the type, mirroring how receipted rows read.
+  const label = cost.description || cost.categoryName || cost.categoryCode;
+
   return (
     <div style={{
-      padding: `${space.md}px 0`,
+      padding: `${space.sm}px 0`,
       borderTop: first ? 'none' : `1px solid ${color.border}`,
       opacity: busy ? 0.5 : 1,
     }}>
-      <div style={{ display: 'flex', gap: space.md, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: font.size.sm, fontWeight: 500 }}>
-            {cost.categoryName || cost.categoryCode}
-          </div>
-          <div style={{ fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
-            {formatIsoDate(cost.date)}{cost.description ? ` · ${cost.description}` : ''}
-          </div>
+      <div style={{ display: 'flex', gap: space.md, alignItems: 'baseline' }}>
+        <div style={{ flex: 1, minWidth: 0, fontSize: font.size.sm, fontWeight: 500 }}>
+          {label}
         </div>
         <div style={{
-          fontSize: font.size.md, fontWeight: 500,
+          fontSize: font.size.sm, fontWeight: 600,
           fontVariantNumeric: 'tabular-nums', flexShrink: 0,
         }}>{formatAmount(cost.amount)}</div>
       </div>
 
-      {/* Type tag is decorative; the invoiced control is a real checkbox with a 44px
-          tap target, kept visually separate so it reads as the interactive thing. */}
       <div style={{
         display: 'flex', gap: space.sm, marginTop: space.xs,
         alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <Tag variant={cost.costType}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
+          <Tag variant={cost.costType}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
+          <Tag variant="neutral">{cost.categoryName || cost.categoryCode}</Tag>
+          <span style={{ fontSize: font.size.xs, color: color.subtle }}>
+            {formatIsoDate(cost.date)}
+          </span>
+        </div>
 
+        {/* Plain by design: this is a state you glance at, not a call to action. The
+            tick carries the meaning; colour would compete with the type tags. */}
         <button
           onClick={onToggle}
           disabled={busy}
           role="switch"
           aria-checked={cost.invoiced}
-          aria-label={`${cost.categoryName || cost.categoryCode}, ${formatAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
+          aria-label={`${label}, ${formatAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
           style={{
-            display: 'flex', alignItems: 'center', gap: space.sm,
-            minHeight: 44, padding: `0 ${space.md}px`,
-            borderRadius: radius.md, cursor: busy ? 'wait' : 'pointer',
-            fontSize: font.size.sm, fontWeight: 600, fontFamily: font.stack,
-            border: `1.5px solid ${cost.invoiced ? tagPalette.invoiced.border : color.border}`,
-            background: cost.invoiced ? tagPalette.invoiced.bg : color.surface,
-            color: cost.invoiced ? tagPalette.invoiced.fg : color.muted,
+            display: 'flex', alignItems: 'center', gap: 6,
+            minHeight: 44, padding: `0 ${space.sm}px`, flexShrink: 0,
+            background: 'transparent', border: 'none',
+            cursor: busy ? 'wait' : 'pointer',
+            fontSize: font.size.xs, fontFamily: font.stack,
+            color: cost.invoiced ? color.text : color.muted,
             WebkitTapHighlightColor: 'transparent',
           }}
         >
           <span aria-hidden style={{
-            width: 20, height: 20, borderRadius: 5, flexShrink: 0,
-            border: `2px solid ${cost.invoiced ? tagPalette.invoiced.fg : color.subtle}`,
-            background: cost.invoiced ? tagPalette.invoiced.fg : 'transparent',
-            color: '#fff', fontSize: 13, lineHeight: '17px', textAlign: 'center',
+            width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+            border: `1.5px solid ${cost.invoiced ? color.text : color.subtle}`,
+            background: cost.invoiced ? color.text : 'transparent',
+            color: color.surface, fontSize: 12, lineHeight: '16px', textAlign: 'center',
           }}>{cost.invoiced ? '✓' : ''}</span>
           {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
         </button>

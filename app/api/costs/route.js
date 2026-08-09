@@ -2,7 +2,7 @@
 // receipted expenses from the Expenses tab, plus the totals derived from both.
 // Returned together so the detail screen needs a single round trip.
 
-import { listCosts, createCost, setInvoiced } from '@/lib/costs';
+import { listCosts, createCost, setInvoiced, setInvoicedForProject } from '@/lib/costs';
 import { listReceiptedExpenses } from '@/lib/expenses';
 import { summariseProject } from '@/lib/rollups';
 
@@ -50,8 +50,12 @@ export async function POST(req) {
 
 export async function PATCH(req) {
   try {
-    const { id, invoiced } = await req.json();
-    const result = await setInvoiced(id, invoiced === true);
+    const { id, invoiced, projectCode, all } = await req.json();
+
+    // Bulk: mark every cost on a project, skipping rows already in that state
+    const result = all
+      ? await setInvoicedForProject(projectCode, invoiced === true)
+      : await setInvoiced(id, invoiced === true);
 
     if (!result.ok) {
       const { status, ...rest } = result;

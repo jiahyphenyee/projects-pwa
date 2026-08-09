@@ -18,6 +18,7 @@ No test suite yet — verification is manual against the spreadsheet.
 ### 0.5.0 — 2026-08-09
 
 [Added]
+- "Mark N as invoiced" bulk action per project, applied as one batched write and skipping rows already invoiced.
 - Invoiced toggle is a labelled checkbox with a 44px tap target, replacing an 11px pill that was too small to hit and did not read as interactive.
 - Colour-coded tags on every row: cost type (material/labour/transport), invoiced state, and a Receipted marker on expense rows. Shared `Tag` component in `app/components/Tag.js`.
 - Totals card per project: non-receipted costs split into invoiced / not invoiced, receipted subtotal, and a combined project total.
