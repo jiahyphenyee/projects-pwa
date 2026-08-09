@@ -20,7 +20,7 @@ No test suite yet — verification is manual against the spreadsheet.
 
 [Added]
 - `docs/DEPLOY.md` — environment variables, the private-key gotcha, and post-deploy checks.
-- `docs/SYSTEM_REFERENCE_CORRECTIONS.md` — nine verified corrections to the master operations doc, plus the `Project costs` schema.
+- `docs/SYSTEM_REFERENCE.md` — v3.0 of the operations reference, corrected against the live workbook and covering both PWAs.
 
 ### 0.7.0 — 2026-08-09
 

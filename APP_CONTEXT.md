@@ -23,7 +23,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
 | `lib/session.js` | `localStorage` session with expiry. |
 | `lib/theme.js` | Design tokens for inline styles. |
-| `docs/` | Deploy notes, and corrections to the master `SYSTEM_REFERENCE.md`. |
+| `docs/` | Deploy notes, and the master `SYSTEM_REFERENCE.md` for the whole operations system. |
 | `public/sw.js` | Hand-written service worker. Bump `CACHE_VERSION` on any change to it. |
 | `lib/localCache.js` | localStorage fallback so viewed projects open offline. |
 | `lib/useOnline.js` | Online/offline state for the header banner. |
