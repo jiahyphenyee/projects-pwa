@@ -18,7 +18,7 @@ No test suite yet — verification is manual against the spreadsheet.
 ### 0.6.0 — 2026-08-09
 
 [Added]
-- Explicit "✎ Edit" button on each cost row, plus a hover underline on the label for pointer devices.
+- Cost row labels underline on hover (pointer devices only) to show they open the editor.
 - Tap a cost's description to edit its date, type, category, amount and description (`PUT /api/costs`).
 - Delete a cost from the edit form, with a confirm step (`DELETE /api/costs?id=`).
 
