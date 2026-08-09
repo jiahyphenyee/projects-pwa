@@ -11,7 +11,7 @@ import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
-import { button, card, color, font, radius, space } from '@/lib/theme';
+import { button, card, color, font, radius, space, tag as tagPalette } from '@/lib/theme';
 
 const TYPE_LABEL = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
 
@@ -262,22 +262,39 @@ function CostRow({ cost, first, busy, onToggle }) {
         }}>{formatAmount(cost.amount)}</div>
       </div>
 
-      {/* Tags sit on their own line so long categories never squeeze them off-screen */}
+      {/* Type tag is decorative; the invoiced control is a real checkbox with a 44px
+          tap target, kept visually separate so it reads as the interactive thing. */}
       <div style={{
-        display: 'flex', gap: space.sm, marginTop: space.sm,
-        flexWrap: 'wrap', alignItems: 'center',
+        display: 'flex', gap: space.sm, marginTop: space.xs,
+        alignItems: 'center', justifyContent: 'space-between',
       }}>
         <Tag variant={cost.costType}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
 
-        <Tag
-          variant={cost.invoiced ? 'invoiced' : 'notInvoiced'}
+        <button
           onClick={onToggle}
           disabled={busy}
-          pressed={cost.invoiced}
-          ariaLabel={cost.invoiced ? 'Mark as not invoiced' : 'Mark as invoiced'}
-        >{cost.invoiced ? '✓ Invoiced' : 'Not invoiced'}</Tag>
-
-        <span style={{ fontSize: 10, color: color.subtle }}>tap to change</span>
+          role="switch"
+          aria-checked={cost.invoiced}
+          aria-label={`${cost.categoryName || cost.categoryCode}, ${formatAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
+          style={{
+            display: 'flex', alignItems: 'center', gap: space.sm,
+            minHeight: 44, padding: `0 ${space.md}px`,
+            borderRadius: radius.md, cursor: busy ? 'wait' : 'pointer',
+            fontSize: font.size.sm, fontWeight: 600, fontFamily: font.stack,
+            border: `1.5px solid ${cost.invoiced ? tagPalette.invoiced.border : color.border}`,
+            background: cost.invoiced ? tagPalette.invoiced.bg : color.surface,
+            color: cost.invoiced ? tagPalette.invoiced.fg : color.muted,
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <span aria-hidden style={{
+            width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+            border: `2px solid ${cost.invoiced ? tagPalette.invoiced.fg : color.subtle}`,
+            background: cost.invoiced ? tagPalette.invoiced.fg : 'transparent',
+            color: '#fff', fontSize: 13, lineHeight: '17px', textAlign: 'center',
+          }}>{cost.invoiced ? '✓' : ''}</span>
+          {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
+        </button>
       </div>
     </div>
   );
