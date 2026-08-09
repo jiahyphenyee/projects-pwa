@@ -12,6 +12,7 @@ import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
+import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const TYPE_LABEL = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
@@ -33,6 +34,7 @@ export default function ProjectDetailPage({ params }) {
   const [showReceipted, setShowR] = useState(false);
   const [bulkBusy, setBulkBusy]   = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [staleAt, setStaleAt]     = useState(null);
   const router = useRouter();
 
   const project = useMemo(
@@ -46,21 +48,36 @@ export default function ProjectDetailPage({ params }) {
     if (userName && project) recordRecent(userName, project.code);
   }, [userName, project]);
 
+  const apply = useCallback(data => {
+    setCosts(data.costs);
+    setReceipted(data.receipted);
+    setTotals(data.totals);
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const res  = await fetch(`/api/costs?project=${encodeURIComponent(code)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not load costs');
-      setCosts(data.costs);
-      setReceipted(data.receipted);
-      setTotals(data.totals);
+      apply(data);
+      writeCache(costsCacheKey(code), data);
+      setStaleAt(null);
       setError('');
     } catch (err) {
-      setError(err.message === 'Failed to fetch' ? 'Offline — costs unavailable' : err.message);
+      // Fall back to the last copy rather than an empty screen, but say plainly that
+      // it is old — silently showing stale money figures would be worse than an error
+      const cached = readCache(costsCacheKey(code));
+      if (cached) {
+        apply(cached.data);
+        setStaleAt(cached.cachedAt);
+        setError('');
+      } else {
+        setError(err.message === 'Failed to fetch' ? 'Offline, and nothing saved for this project yet' : err.message);
+      }
     } finally {
       setLoading(false);
     }
-  }, [code]);
+  }, [code, apply]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -149,6 +166,17 @@ export default function ProjectDetailPage({ params }) {
               background: color.accentLight, color: color.accent,
               borderRadius: radius.md, fontSize: font.size.sm,
             }}>{error}</p>
+          )}
+
+          {staleAt && (
+            <div style={{
+              padding: `${space.sm}px ${space.md}px`, marginBottom: space.lg,
+              background: color.accentLight, color: color.accent,
+              borderRadius: radius.md, fontSize: font.size.xs,
+            }}>
+              Offline — showing data saved {describeAge(staleAt)}. Changes cannot be saved
+              until you reconnect.
+            </div>
           )}
 
           {!loading && <TotalsCard totals={totals} />}

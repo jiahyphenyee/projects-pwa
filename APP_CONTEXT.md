@@ -23,7 +23,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
 | `lib/session.js` | `localStorage` session with expiry. |
 | `lib/theme.js` | Design tokens for inline styles. |
-| `public/` | Manifest, icons, service worker. |
+| `public/sw.js` | Hand-written service worker. Bump `CACHE_VERSION` on any change to it. |
+| `lib/localCache.js` | localStorage fallback so viewed projects open offline. |
+| `lib/useOnline.js` | Online/offline state for the header banner. |
 
 ## Rules to maintain
 
@@ -52,6 +54,13 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **`GEN-000` is excluded from every cross-project rollup.** It is the general company expense bucket and is browsable like any project, but counting it in aggregates inflates project costs with overheads. Apply the exclusion in `lib/rollups.js` only.
 - **A project with no client is a direct company job**, not incomplete data. Never treat a blank `client_name`/`client_id` as an error or prompt to fix it; in client-based rollups these belong to the company itself, not to an "unknown client" bucket.
 - **`display_address` is immutable** once a project has linked rows — it is stored denormalised across timesheets, expenses and invoices.
+
+**Offline**
+
+- **The service worker registers in production only.** In dev it caches constantly-changing unhashed assets and produces stale-module errors that look like real bugs. Test with `npm run build && npm start`.
+- **Bump `CACHE_VERSION` in `public/sw.js` whenever that file changes.** The cache name is what evicts the old cache; a stale shell served against fresh chunks is the classic PWA failure.
+- **Never cache `/api/auth` or any non-GET request.** A cached identity is a security problem, and cached writes are a correctness one.
+- **Stale data must say it is stale.** The project screen shows how old cached figures are — silently showing out-of-date money is worse than an error.
 
 **Code**
 

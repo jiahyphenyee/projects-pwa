@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser, clearUser, daysRemaining } from '@/lib/session';
+import { useOnline } from '@/lib/useOnline';
 import { card, color, font, radius, shadow, space } from '@/lib/theme';
 
 export default function AppShell({ title, subtitle, onBack, actions, children }) {
@@ -14,6 +15,7 @@ export default function AppShell({ title, subtitle, onBack, actions, children })
   const [menuOpen, setMenu]   = useState(false);
   const [daysLeft, setDays]   = useState(null);
   const menuRef = useRef(null);
+  const online  = useOnline();
   const router  = useRouter();
 
   useEffect(() => {
@@ -144,6 +146,16 @@ export default function AppShell({ title, subtitle, onBack, actions, children })
           )}
         </div>
       </header>
+
+      {!online && (
+        <div style={{
+          background: color.accent, color: '#fff',
+          padding: `${space.sm}px ${space.lg}px`,
+          fontSize: font.size.xs, textAlign: 'center',
+        }}>
+          Offline — you can read saved data, but nothing can be saved
+        </div>
+      )}
 
       <main style={{
         padding: `${space.lg}px`,

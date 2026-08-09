@@ -8,12 +8,20 @@ Mobile-first PWA for tracking construction projects and their non-receipted cost
 npm install                 # install
 npm run dev                 # run — http://localhost:3000
 npm run build               # production build (also the type/lint gate)
+npm start                   # production server — needed to test the service worker
 ```
 
 Requires `.env.local` with `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEET_ID`.
 No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
+
+### 0.7.0 — 2026-08-09
+
+[Added]
+- Service worker (`public/sw.js`): cache-first for build assets, network-first with cached fallback for pages and API reads. Registered in production only.
+- Offline reads — a project you have opened before still renders its last-known costs with no signal, with a banner stating how old the data is.
+- Offline banner in the header, and installability to the home screen.
 
 ### 0.6.0 — 2026-08-09
 
