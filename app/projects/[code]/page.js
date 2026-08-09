@@ -308,32 +308,55 @@ function CostRow({ cost, first, busy, onToggle, onEdit }) {
         </>
       }
       action={
-        // Plain by design: this is a state you glance at, not a call to action. The
-        // tick carries the meaning; colour would compete with the type tags.
-        <button
-          onClick={onToggle}
-          disabled={busy}
-          role="switch"
-          aria-checked={cost.invoiced}
-          aria-label={`${label}, ${formatAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            minHeight: 44, padding: `0 ${space.sm}px`, flexShrink: 0,
-            background: 'transparent', border: 'none',
-            cursor: busy ? 'wait' : 'pointer',
-            fontSize: font.size.xs, fontFamily: font.stack,
-            color: cost.invoiced ? color.text : color.muted,
-            WebkitTapHighlightColor: 'transparent',
-          }}
-        >
-          <span aria-hidden style={{
-            width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-            border: `1.5px solid ${cost.invoiced ? color.text : color.subtle}`,
-            background: cost.invoiced ? color.text : 'transparent',
-            color: color.surface, fontSize: 12, lineHeight: '16px', textAlign: 'center',
-          }}>{cost.invoiced ? '✓' : ''}</span>
-          {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: space.xs, flexShrink: 0 }}>
+          {/* Explicit button because tapping the label is undiscoverable with a mouse —
+              there is no hover state on touch to hint at it, and none on desktop until
+              you happen to point at it. */}
+          <button
+            onClick={onEdit}
+            disabled={busy}
+            className="ghost-button"
+            aria-label={`Edit ${label}`}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              minHeight: 44, padding: `0 ${space.sm}px`,
+              background: 'transparent', border: 'none', borderRadius: radius.sm,
+              cursor: busy ? 'wait' : 'pointer',
+              fontSize: font.size.xs, fontFamily: font.stack, color: color.muted,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span aria-hidden>✎</span> Edit
+          </button>
+
+          {/* Plain by design: this is a state you glance at, not a call to action. The
+              tick carries the meaning; colour would compete with the type tags. */}
+          <button
+            onClick={onToggle}
+            disabled={busy}
+            role="switch"
+            aria-checked={cost.invoiced}
+            aria-label={`${label}, ${formatAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
+            className="ghost-button"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              minHeight: 44, padding: `0 ${space.sm}px`,
+              background: 'transparent', border: 'none', borderRadius: radius.sm,
+              cursor: busy ? 'wait' : 'pointer',
+              fontSize: font.size.xs, fontFamily: font.stack,
+              color: cost.invoiced ? color.text : color.muted,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span aria-hidden style={{
+              width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+              border: `1.5px solid ${cost.invoiced ? color.text : color.subtle}`,
+              background: cost.invoiced ? color.text : 'transparent',
+              color: color.surface, fontSize: 12, lineHeight: '16px', textAlign: 'center',
+            }}>{cost.invoiced ? '✓' : ''}</span>
+            {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
+          </button>
+        </div>
       }
     />
   );

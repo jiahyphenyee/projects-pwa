@@ -27,7 +27,7 @@ export default function LineRow({ label, amount, tags, meta, action, first, dimm
 
   const heading = (
     <>
-      <span style={{
+      <span className="row-label-text" style={{
         flex: 1, minWidth: 0,
         fontSize: font.size.sm, fontWeight: 500, lineHeight: 1.4,
       }}>{label}</span>
@@ -45,7 +45,14 @@ export default function LineRow({ label, amount, tags, meta, action, first, dimm
       opacity: dimmed ? 0.5 : 1,
     }}>
       {onLabelClick
-        ? <button onClick={onLabelClick} style={headingStyle} aria-label={`Edit ${label}`}>{heading}</button>
+        ? (
+          <button
+            onClick={onLabelClick}
+            className="row-label"
+            style={headingStyle}
+            aria-label={`Edit ${label}`}
+          >{heading}</button>
+        )
         : <div style={headingStyle}>{heading}</div>}
 
       <div style={{
