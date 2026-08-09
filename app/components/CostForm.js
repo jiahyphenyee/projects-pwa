@@ -5,14 +5,24 @@ import { COST_TYPES, DEFAULT_COST_TYPE } from '@/lib/constants';
 import { todayLocal } from '@/lib/dates';
 import { button, color, font, input, radius, space } from '@/lib/theme';
 
-export default function CostForm({ project, userName, onSaved, onCancel }) {
-  const [date, setDate]         = useState(todayLocal);
-  const [costType, setCostType] = useState(DEFAULT_COST_TYPE);
-  const [category, setCategory] = useState('');
-  const [description, setDesc]  = useState('');
-  const [amount, setAmount]     = useState('');
+/**
+ * Add or edit a cost. Passing `cost` switches to edit mode, which also offers delete.
+ *
+ * Edit deliberately does not expose the invoiced state — that has its own control on
+ * the row, and burying it here would make "fix a typo in the amount" a way to
+ * accidentally un-bill a line.
+ */
+export default function CostForm({ project, userName, cost, onSaved, onCancel, onDeleted }) {
+  const editing = Boolean(cost);
+
+  const [date, setDate]         = useState(cost?.date || todayLocal());
+  const [costType, setCostType] = useState(cost?.costType || DEFAULT_COST_TYPE);
+  const [category, setCategory] = useState(cost?.categoryCode || '');
+  const [description, setDesc]  = useState(cost?.description || '');
+  const [amount, setAmount]     = useState(cost ? String(cost.amount) : '');
   const [categories, setCats]   = useState([]);
   const [saving, setSaving]     = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError]       = useState('');
 
   useEffect(() => {
@@ -23,7 +33,8 @@ export default function CostForm({ project, userName, onSaved, onCancel }) {
   }, []);
 
   const amountValue = parseFloat(String(amount).replace(/,/g, ''));
-  const canSave = costType && category && Number.isFinite(amountValue) && amountValue > 0 && !saving;
+  const busy = saving || deleting;
+  const canSave = costType && category && Number.isFinite(amountValue) && amountValue > 0 && !busy;
 
   async function save() {
     if (!canSave) return;
@@ -31,26 +42,47 @@ export default function CostForm({ project, userName, onSaved, onCancel }) {
     setError('');
     try {
       const res = await fetch('/api/costs', {
-        method:  'POST',
+        method:  editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          projectCode:    project.code,
-          displayAddress: project.address,
-          date, costType, categoryCode: category,
-          description, amount: amountValue,
-          createdBy: userName,
-        }),
+        body:    JSON.stringify(editing
+          ? { id: cost.id, date, costType, categoryCode: category, description, amount: amountValue }
+          : {
+              projectCode:    project.code,
+              displayAddress: project.address,
+              date, costType, categoryCode: category,
+              description, amount: amountValue,
+              createdBy: userName,
+            }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Could not save the cost');
+        setError(data.error || 'Could not save');
         setSaving(false);
         return;
       }
       onSaved(data.cost);
     } catch {
-      setError('No connection. The cost was not saved.');
+      setError('No connection. Nothing was saved.');
       setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`Delete this ${amountValue ? `$${amountValue} ` : ''}cost? This cannot be undone.`)) return;
+    setDeleting(true);
+    setError('');
+    try {
+      const res  = await fetch(`/api/costs?id=${encodeURIComponent(cost.id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Could not delete');
+        setDeleting(false);
+        return;
+      }
+      onDeleted(cost.id);
+    } catch {
+      setError('No connection. Nothing was deleted.');
+      setDeleting(false);
     }
   }
 
@@ -107,7 +139,7 @@ export default function CostForm({ project, userName, onSaved, onCancel }) {
         />
       </Field>
 
-      <Field label="Description" hint="Optional.">
+      <Field label="Description" hint="Optional. Shown as the row's main label.">
         <input
           value={description}
           onChange={e => setDesc(e.target.value)}
@@ -116,6 +148,12 @@ export default function CostForm({ project, userName, onSaved, onCancel }) {
           style={input}
         />
       </Field>
+
+      {editing && cost.invoiced && (
+        <p style={{ margin: 0, fontSize: font.size.xs, color: color.muted }}>
+          This cost is marked invoiced. Editing it here won&apos;t change that.
+        </p>
+      )}
 
       {error && (
         <p style={{
@@ -126,15 +164,27 @@ export default function CostForm({ project, userName, onSaved, onCancel }) {
       )}
 
       <div style={{ display: 'flex', gap: space.md }}>
-        <button onClick={onCancel} disabled={saving} style={{ ...button.secondary, flex: 1 }}>
+        <button onClick={onCancel} disabled={busy} style={{ ...button.secondary, flex: 1 }}>
           Cancel
         </button>
         <button
           onClick={save}
           disabled={!canSave}
           style={{ ...button.primary, flex: 2, opacity: canSave ? 1 : 0.45 }}
-        >{saving ? 'Saving…' : 'Add cost'}</button>
+        >{saving ? 'Saving…' : editing ? 'Save changes' : 'Add cost'}</button>
       </div>
+
+      {editing && (
+        <button
+          onClick={remove}
+          disabled={busy}
+          style={{
+            ...button.secondary,
+            color: color.danger, borderColor: color.dangerLight,
+            fontSize: font.size.sm, opacity: busy ? 0.5 : 1,
+          }}
+        >{deleting ? 'Deleting…' : 'Delete this cost'}</button>
+      )}
     </div>
   );
 }

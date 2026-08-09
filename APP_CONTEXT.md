@@ -40,7 +40,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Rows in `Projects` cannot be deleted via the API** for the same reason. Clear `A:B` and `D:K` instead, leaving C's formula.
 - **IDs are max+1 over existing IDs** (`nextId()`), never a row count. Codes are non-contiguous.
 - **Dates are written as ISO `YYYY-MM-DD` with `USER_ENTERED`.** The workbook locale is `en_US`, so ambiguous formats parse wrongly. Timestamps are written as ISO 8601 *with offset* so Sheets leaves them as text.
-- **Never delete rows in tabs this app does not own** (`Projects`, `Expenses`, `Contacts`, `Categories`). Hard delete is permitted only in `Project costs`, and only via `deleteCost()`.
+- **Never delete rows in tabs this app does not own** (`Projects`, `Expenses`, `Contacts`, `Categories`). Hard delete is permitted only in `Project costs`, and only via `deleteCost()` / `deleteRowById()`, which re-verify the row's ID immediately before deleting because the API deletes by index and indexes shift.
+- **Editing a cost rewrites `E:J` only.** `project_code`, `display_address`, the invoiced state (`K:L`), `invoice_ref` and `created_by` are deliberately untouched, so correcting an amount can never silently un-bill a line or reassign authorship.
+- **Deleted cost IDs are reused.** `nextId()` is max+1 over surviving rows, so deleting the newest cost frees its ID for the next insert. Fine within the sheet; be careful if a cost ID is ever quoted outside it.
 
 **Business rules**
 

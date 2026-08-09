@@ -2,7 +2,7 @@
 // receipted expenses from the Expenses tab, plus the totals derived from both.
 // Returned together so the detail screen needs a single round trip.
 
-import { listCosts, createCost, setInvoiced, setInvoicedForProject } from '@/lib/costs';
+import { listCosts, createCost, updateCost, deleteCost, setInvoiced, setInvoicedForProject } from '@/lib/costs';
 import { listReceiptedExpenses } from '@/lib/expenses';
 import { summariseProject } from '@/lib/rollups';
 
@@ -66,5 +66,39 @@ export async function PATCH(req) {
   } catch (err) {
     console.error('Cost update error:', err.message);
     return Response.json({ error: 'Could not update the cost' }, { status: 500 });
+  }
+}
+
+export async function PUT(req) {
+  try {
+    const { id, ...fields } = await req.json();
+    const result = await updateCost(id, fields);
+
+    if (!result.ok) {
+      const { status, ...rest } = result;
+      return Response.json(rest, { status: status || 400 });
+    }
+    return Response.json(result);
+
+  } catch (err) {
+    console.error('Cost edit error:', err.message);
+    return Response.json({ error: 'Could not save the changes' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const result = await deleteCost(searchParams.get('id'));
+
+    if (!result.ok) {
+      const { status, ...rest } = result;
+      return Response.json(rest, { status: status || 400 });
+    }
+    return Response.json(result);
+
+  } catch (err) {
+    console.error('Cost delete error:', err.message);
+    return Response.json({ error: 'Could not delete the cost' }, { status: 500 });
   }
 }

@@ -15,6 +15,12 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.6.0 — 2026-08-09
+
+[Added]
+- Tap a cost's description to edit its date, type, category, amount and description (`PUT /api/costs`).
+- Delete a cost from the edit form, with a confirm step (`DELETE /api/costs?id=`).
+
 ### 0.5.0 — 2026-08-09
 
 [Added]

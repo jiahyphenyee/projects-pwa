@@ -32,6 +32,7 @@ export default function ProjectDetailPage({ params }) {
   const [pendingId, setPending]   = useState(null);
   const [showReceipted, setShowR] = useState(false);
   const [bulkBusy, setBulkBusy]   = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const router = useRouter();
 
   const project = useMemo(
@@ -162,7 +163,7 @@ export default function ProjectDetailPage({ params }) {
               </h2>
               {!adding && (
                 <button
-                  onClick={() => setAdding(true)}
+                  onClick={() => { setEditingId(null); setAdding(true); }}
                   style={{ ...button.primary, padding: '9px 14px', fontSize: font.size.sm }}
                 >+ Add</button>
               )}
@@ -192,13 +193,28 @@ export default function ProjectDetailPage({ params }) {
               </p>
             )}
 
-            {costs.map((cost, i) => (
+            {costs.map((cost, i) => editingId === cost.id ? (
+              <div key={cost.id} style={{
+                border: `1px solid ${color.border}`, borderRadius: radius.md,
+                padding: space.lg, margin: `${space.md}px 0`, background: color.bg,
+              }}>
+                <CostForm
+                  project={project}
+                  userName={userName}
+                  cost={cost}
+                  onCancel={() => setEditingId(null)}
+                  onSaved={() => { setEditingId(null); load(); }}
+                  onDeleted={() => { setEditingId(null); load(); }}
+                />
+              </div>
+            ) : (
               <CostRow
                 key={cost.id}
                 cost={cost}
                 first={i === 0}
                 busy={pendingId === cost.id}
                 onToggle={() => toggleInvoiced(cost)}
+                onEdit={() => { setAdding(false); setEditingId(cost.id); }}
               />
             ))}
 
@@ -272,7 +288,7 @@ export default function ProjectDetailPage({ params }) {
   );
 }
 
-function CostRow({ cost, first, busy, onToggle }) {
+function CostRow({ cost, first, busy, onToggle, onEdit }) {
   // Description is what identifies the cost to a human; category is metadata, so it
   // sits in a tag alongside the type, mirroring how receipted rows read.
   const label = cost.description || cost.categoryName || cost.categoryCode;
@@ -281,6 +297,7 @@ function CostRow({ cost, first, busy, onToggle }) {
     <LineRow
       first={first}
       dimmed={busy}
+      onLabelClick={onEdit}
       label={label}
       amount={formatAmount(cost.amount)}
       meta={formatIsoDate(cost.date)}
