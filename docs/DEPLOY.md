@@ -12,16 +12,18 @@ gitignored and never leaves this machine.
 | `GOOGLE_PRIVATE_KEY` | Full PEM **including** the BEGIN/END lines |
 | `GOOGLE_SHEET_ID` | The workbook id from its URL |
 
-**The private key is the one that usually breaks.** `lib/google.js` calls
-`.replace(/\\n/g, '\n')`, so the value must contain literal backslash-n sequences rather
-than real newlines. Two ways to get that right:
+**The private key is the one that usually breaks**, because the two environments parse
+it differently:
 
-- Paste the key wrapped in double quotes, exactly as it appears in `.env.local`.
-- Or paste the raw multi-line key — Vercel stores it verbatim and the replace becomes a
-  no-op, which also works.
+- `.env.local` — Next strips the surrounding double quotes before the app sees the value
+- **Vercel env vars — stored verbatim, quotes included**
 
-If auth fails after deploy the error is usually `error:1E08010C:DECODER routines` or
-`invalid_grant`, both of which mean the key was mangled in transit.
+So copying the line straight out of `.env.local` *with* its quotes gives Vercel a value
+beginning `"-----BEGIN…`, which fails to parse and returns a 500 saying nothing useful.
+
+**Paste the key without the surrounding quotes**, keeping the `\n` sequences. Since
+2026-08-10 `lib/google.js` strips stray quotes anyway and throws a named error if the PEM
+is malformed, so a mistake here now says what is wrong instead of crashing opaquely.
 
 Nothing else is needed. There are **no Xero variables** — this app makes no Xero calls.
 
