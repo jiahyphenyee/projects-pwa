@@ -7,7 +7,7 @@ import { invalidateProjectsCache } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { todayLocal } from '@/lib/dates';
-import { button, card, color, font, input, radius, space } from '@/lib/theme';
+import { button, card, color, dateInput, font, input, radius, space } from '@/lib/theme';
 
 export default function NewProjectPage() {
   const [address, setAddress]     = useState('');
@@ -90,7 +90,7 @@ export default function NewProjectPage() {
             onChange={e => setClient(e.target.value)}
             style={{ ...input, appearance: 'none', background: color.surface }}
           >
-            <option value="">No client</option>
+            <option value="">No client (under HFC)</option>
             {clients.map(c => (
               <option key={c.id} value={c.companyName}>{c.companyName}</option>
             ))}
@@ -102,7 +102,7 @@ export default function NewProjectPage() {
             type="date"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
-            style={input}
+            style={dateInput}
           />
         </Field>
 
@@ -165,7 +165,7 @@ export default function NewProjectPage() {
 
 function Field({ label, hint, children }) {
   return (
-    <label style={{ display: 'block' }}>
+    <label style={{ display: 'block', minWidth: 0 }}>
       <div style={{ fontSize: font.size.sm, fontWeight: 600, marginBottom: space.xs }}>{label}</div>
       {children}
       {hint && (

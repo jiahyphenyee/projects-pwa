@@ -16,6 +16,14 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### Unreleased
+
+[Fixed]
+- Date fields no longer overflow their card on iOS. `input[type=date]` keeps its native control width there and ignores `width: 100%`; a new `dateInput` token in `lib/theme.js` drops the native appearance, and `input` plus the `Field` labels now set `min-width: 0` so grid items can shrink below min-content. Applies to both the new-project start date and the cost form date.
+
+[Changed]
+- The blank client option on the new-project form now reads "No client (under HFC)", to make clear it means company-direct work rather than missing data.
+
 ### 0.9.0 — 2026-08-14
 
 [Changed]

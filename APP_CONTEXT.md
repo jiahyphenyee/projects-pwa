@@ -68,6 +68,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - JavaScript, not TypeScript. App Router. `@/` alias. Inline styles from `lib/theme.js` — no CSS framework.
 - **List rows go through `app/components/LineRow.js`**, and tags through `Tag.js`. Both lists sit on one screen, so writing bespoke row markup lets typography drift. Change spacing or sizing there, once.
 - **Never size text with a raw number.** Use `font.size.*` from `lib/theme.js`.
+- **`input[type=date]` must use the `dateInput` token, not `input`.** iOS Safari sizes date inputs to their native control and ignores `width: 100%`, so a plain `input` style overflows its card. Keep `min-width: 0` on any grid or flex ancestor of a form control for the same reason.
 - **Hover styling belongs in `globals.css` under `@media (hover: hover)`**, never inline and never unguarded — on touch, `:hover` sticks after a tap and leaves a control looking permanently hovered.
 - Next.js 16: `params` is a Promise (`await params`, or `use(params)` in client components). Route handlers are uncached by default.
 - Read `AGENTS.md` before writing framework code — the installed Next version may differ from training data.

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { COST_TYPES, DEFAULT_COST_TYPE } from '@/lib/constants';
 import { todayLocal } from '@/lib/dates';
-import { button, color, font, input, radius, space } from '@/lib/theme';
+import { button, color, dateInput, font, input, radius, space } from '@/lib/theme';
 
 /**
  * Add or edit a cost. Passing `cost` switches to edit mode, which also offers delete.
@@ -89,7 +89,7 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
   return (
     <div style={{ display: 'grid', gap: space.lg }}>
       <Field label="Date">
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={input} />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={dateInput} />
       </Field>
 
       <Field label="Type">
@@ -191,7 +191,7 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
 
 function Field({ label, hint, children }) {
   return (
-    <label style={{ display: 'block' }}>
+    <label style={{ display: 'block', minWidth: 0 }}>
       <div style={{ fontSize: font.size.sm, fontWeight: 600, marginBottom: space.xs }}>{label}</div>
       {children}
       {hint && (
