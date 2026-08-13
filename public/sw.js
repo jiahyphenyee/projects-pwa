@@ -4,11 +4,14 @@
 // Bump CACHE_VERSION on any change to this file — the name is what invalidates old
 // caches, and a stale shell paired with fresh chunks is the classic PWA failure.
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE = `projects-pwa-${CACHE_VERSION}`;
 
 // Screens worth having available cold. Data still comes from the API caches below.
-const SHELL = ['/', '/home', '/projects', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const SHELL = [
+  '/', '/home', '/projects', '/manifest.json',
+  '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png',
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(

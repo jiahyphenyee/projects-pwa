@@ -16,6 +16,20 @@ No test suite yet — verification is manual against the spreadsheet.
 
 ## Changelog
 
+### 0.9.0 — 2026-08-14
+
+[Changed]
+- App icon replaced with the "PRJ" wordmark artwork, regenerated at 192, 512 and 180 (apple-touch).
+- App renamed to "HFC Projects" across `manifest.json` (`name`, `short_name`) and the `metadata` block in `app/layout.js`.
+
+[Fixed]
+- `apple-touch-icon.png` is now flattened onto the cyan field. iOS ignores alpha and composites onto black, so the transparent rounded corners rendered as black corners.
+- Added a dedicated `icon-maskable-512.png` instead of reusing the `any` icon for `purpose: "maskable"`. The wordmark spans 12.7%–87.5% of the width, so Android's inner-80% crop was clipping the P and the J; the maskable variant is full-bleed cyan with the wordmark scaled to 94% to sit inside the safe circle.
+- Bumped `CACHE_VERSION` to `v2` so installed clients pick up the new icons rather than serving the precached old ones.
+
+[Removed]
+- `public/android-chrome-512x512.png` — the source upload, redundant with `icon-512.png` and referenced by nothing.
+
 ### 0.8.0 — 2026-08-09
 
 [Added]
