@@ -1,6 +1,6 @@
 # Projects PWA
 
-Mobile-first PWA for tracking construction projects and their non-receipted costs (labour, transport, materials without a receipt), backed by a Google Sheets workbook.
+Mobile-first PWA for tracking construction projects and their non-receipted costs (external labour, transport, materials without a receipt), backed by a Google Sheets workbook.
 
 ## Quick start
 
@@ -22,6 +22,7 @@ No test suite yet — verification is manual against the spreadsheet.
 - Date fields no longer overflow their card on iOS. `input[type=date]` keeps its native control width there and ignores `width: 100%`; a new `dateInput` token in `lib/theme.js` drops the native appearance, and `input` plus the `Field` labels now set `min-width: 0` so grid items can shrink below min-content. Applies to both the new-project start date and the cost form date.
 
 [Changed]
+- Cost type `labour` is replaced by `external_labour` ("External Labour") in `COST_TYPES`, with the tag palette renamed to match. The type now names subcontracted labour specifically, so own-worker labour is never recorded here. No sheet rows carried the old value, so nothing needed migrating.
 - The blank client option on the new-project form now reads "No client (under HFC)", to make clear it means company-direct work rather than missing data.
 
 ### 0.9.0 — 2026-08-14
@@ -64,7 +65,7 @@ No test suite yet — verification is manual against the spreadsheet.
 - Shared `LineRow` component so cost rows and receipted rows use identical typography and spacing.
 - "Mark N as invoiced" bulk action per project, applied as one batched write and skipping rows already invoiced.
 - Invoiced toggle is a labelled checkbox with a 44px tap target, replacing an 11px pill that was too small to hit and did not read as interactive.
-- Colour-coded tags on every row: cost type (material/labour/transport), invoiced state, and a Receipted marker on expense rows. Shared `Tag` component in `app/components/Tag.js`.
+- Colour-coded tags on every row: cost type (material/external labour/transport), invoiced state, and a Receipted marker on expense rows. Shared `Tag` component in `app/components/Tag.js`.
 - Totals card per project: non-receipted costs split into invoiced / not invoiced, receipted subtotal, and a combined project total.
 - Invoiced toggle on each cost line (`PATCH /api/costs`), stamping `invoiced_date` on tick and clearing it on untick. Optimistic, reverting if the write fails.
 - Collapsible read-only "Receipted" section reading the `Expenses` tab. Rejected claims excluded; pending ones included.
@@ -75,7 +76,7 @@ No test suite yet — verification is manual against the spreadsheet.
 [Added]
 - Cost form preselects Material (`DEFAULT_COST_TYPE`), the most common entry.
 - `Project costs` tab wired up: `GET/POST /api/costs`, cost entry form, and a per-project cost list newest-first.
-- Costs carry both a type (material/labour/transport) and a category from the Categories tab; both required.
+- Costs carry both a type (material/external labour/transport) and a category from the Categories tab; both required.
 - Validation on write: known cost type, live category, positive amount under $1,000,000, real calendar date.
 
 [Fixed]

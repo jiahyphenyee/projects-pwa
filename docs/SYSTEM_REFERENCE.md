@@ -267,7 +267,7 @@ Written by the **Expense PWA**, pushed to Xero. Read-only to the Projects PWA.
 
 ### 5.10 Project costs  *(new in v3.0)*
 
-**Non-receipted** costs — labour, transport, materials bought without a receipt. Owned by
+**Non-receipted** costs — external labour, transport, materials bought without a receipt. Owned by
 the **Projects PWA**. **Not linked to Xero.** Header row 1, `ℹ` note row 2, data from row 3.
 
 | Col | Field | Notes |
@@ -277,7 +277,7 @@ the **Projects PWA**. **Not linked to Xero.** Header row 1, `ℹ` note row 2, da
 | C | `project_code` | FK → Projects |
 | D | `display_address` | Snapshot at entry |
 | E | `cost_date` | Real date, `d mmm yyyy` |
-| F | `cost_type` | `material` \| `labour` \| `transport` |
+| F | `cost_type` | `material` \| `external_labour` \| `transport` |
 | G | `category_code` | FK → Categories |
 | H | `category_name` | Plain-text snapshot, **not** a formula |
 | I | `description` | The row's label in the app |
@@ -289,7 +289,7 @@ the **Projects PWA**. **Not linked to Xero.** Header row 1, `ℹ` note row 2, da
 | O | `updated_at` | ISO 8601 with `+08:00` |
 
 **Two dimensions by design:** `cost_type` is the nature of the spend, `category_code` the
-trade. A plumbing job's labour is `labour` + `PLMB`.
+trade. A plumbing job's subcontracted labour is `external_labour` + `PLMB`.
 
 ### 5.11–5.14 Invoices / Payments / Payment allocations / Payroll / Reports
 
