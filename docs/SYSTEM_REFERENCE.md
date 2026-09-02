@@ -206,6 +206,7 @@ a worker with no row there never gets `is_rest_day = TRUE`.
 | I | `closed_date` | |
 | J | `drive_folder_url` | *[corrected] — was undocumented* |
 | K | `notes` | |
+| L | `lock_code` | Site door/gate code. Optional; set from the Projects PWA |
 
 > **[corrected] Column C runs the opposite way to the old doc.** It is a self-populating
 > formula deriving the ID *from* the name, and is protected under the name "autofilled":
@@ -480,7 +481,7 @@ Neither holds tab names — those come from `getTab()`.
 Every rule here was found by hitting it.
 
 1. **Never `.slice(1)`.** Note rows sit inside data. Filter by ID prefix.
-2. **Never write `Projects` column C.** Protected and self-populating. Write `A:B` and `D:K`.
+2. **Never write `Projects` column C.** Protected and self-populating. Write `A:B` and `D:L`.
 3. **Never insert or delete rows in `Projects`.** Structural changes hit the protected
    column and are rejected — including `insertDataOption: 'INSERT_ROWS'`. Clear values instead.
 4. **Never `append` into a tab with a checkbox column.** A checkbox reports `FALSE` on

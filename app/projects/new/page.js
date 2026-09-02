@@ -13,6 +13,7 @@ export default function NewProjectPage() {
   const [address, setAddress]     = useState('');
   const [clientName, setClient]   = useState('');
   const [startDate, setStartDate] = useState(todayLocal);
+  const [lockCode, setLockCode]   = useState('');
   const [clients, setClients]     = useState([]);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
@@ -39,7 +40,7 @@ export default function NewProjectPage() {
       const res = await fetch('/api/projects', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ displayAddress: address, clientName, startDate, force }),
+        body:    JSON.stringify({ displayAddress: address, clientName, startDate, lockCode, force }),
       });
       const data = await res.json();
 
@@ -103,6 +104,17 @@ export default function NewProjectPage() {
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
             style={dateInput}
+          />
+        </Field>
+
+        <Field label="Lock code" hint="Optional. Can be added or changed later.">
+          <input
+            value={lockCode}
+            onChange={e => setLockCode(e.target.value)}
+            placeholder="e.g. 1234#"
+            autoComplete="off"
+            maxLength={40}
+            style={input}
           />
         </Field>
 

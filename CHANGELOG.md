@@ -10,6 +10,9 @@ version and date and open a fresh one above.
 
 ## Unreleased
 
+[Added]
+- Optional lock code on a project, set when creating it and editable from the project screen.
+
 [Changed]
 - Cost type `labour` renamed to `external_labour` ("External Labour"), so it names subcontracted labour only.
 - The blank client option on the new-project form now reads "No client (under HFC)" — it means company-direct work, not missing data.
