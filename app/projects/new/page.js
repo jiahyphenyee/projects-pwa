@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
+import LockCodeInput from '@/app/components/LockCodeInput';
 import { invalidateProjectsCache } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
@@ -107,16 +108,11 @@ export default function NewProjectPage() {
           />
         </Field>
 
-        <Field label="Lock code" hint="Optional. Can be added or changed later.">
-          <input
-            value={lockCode}
-            onChange={e => setLockCode(e.target.value)}
-            placeholder="e.g. 1234#"
-            autoComplete="off"
-            maxLength={40}
-            style={input}
-          />
-        </Field>
+        <LockCodeInput
+          value={lockCode}
+          onChange={setLockCode}
+          hint="Optional. Can be added or changed later."
+        />
 
         <p style={{ margin: 0, fontSize: font.size.xs, color: color.muted }}>
           Status will be set to <strong>active</strong>.

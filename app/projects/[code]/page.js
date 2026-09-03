@@ -7,13 +7,14 @@ import CostForm from '@/app/components/CostForm';
 import TotalsCard, { formatAmount } from '@/app/components/TotalsCard';
 import Tag from '@/app/components/Tag';
 import LineRow from '@/app/components/LineRow';
+import LockCodeInput from '@/app/components/LockCodeInput';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
 import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
-import { button, card, color, font, input, radius, space } from '@/lib/theme';
+import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const TYPE_LABEL = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
 
@@ -415,21 +416,7 @@ function LockCodeCard({ project, onSaved }) {
     <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
       {editing ? (
         <>
-          <label style={{ display: 'block', minWidth: 0 }}>
-            <div style={{ fontSize: font.size.sm, fontWeight: 600, marginBottom: space.xs }}>
-              Lock code
-            </div>
-            <input
-              value={value}
-              onChange={e => setValue(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') save(); }}
-              placeholder="e.g. 1234#"
-              autoComplete="off"
-              maxLength={40}
-              autoFocus
-              style={input}
-            />
-          </label>
+          <LockCodeInput value={value} onChange={setValue} autoFocus />
           <div style={{ display: 'flex', gap: space.md, marginTop: space.md }}>
             <button
               onClick={() => { setEditing(false); setValue(saved); setError(''); }}
@@ -447,16 +434,17 @@ function LockCodeCard({ project, onSaved }) {
           </p>
         </>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: space.md }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: font.size.xs, color: color.muted }}>Lock code</div>
             <div style={{
-              fontSize: saved ? font.size.lg : font.size.sm,
+              fontSize: saved ? font.size.md : font.size.sm,
               fontWeight: saved ? 600 : 400,
               color: saved ? color.text : color.muted,
-              letterSpacing: saved ? 0.5 : 0,
               marginTop: 2,
-              overflowWrap: 'anywhere',
+              lineHeight: 1.45,
+              whiteSpace: 'pre-wrap',     // a sentence may carry its own line breaks
+              overflowWrap: 'anywhere',   // …and an unbroken code must not widen the card
             }}>{saved || 'Not set'}</div>
           </div>
           <button
