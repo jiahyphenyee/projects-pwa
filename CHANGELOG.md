@@ -19,6 +19,7 @@ version and date and open a fresh one above.
 
 [Fixed]
 - Date fields no longer overflow their card on iOS.
+- Form fields in a card now share one height — the date field no longer sits a few pixels off from the ones beside it.
 
 ## 0.9.0 — 2026-08-14
 
