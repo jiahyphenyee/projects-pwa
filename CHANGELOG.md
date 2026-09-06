@@ -12,6 +12,7 @@ version and date and open a fresh one above.
 
 [Added]
 - Optional lock code on a project, set when creating it and editable from the project screen.
+- The project screen now says when a project is on hold or closed.
 
 [Changed]
 - Cost types now match the workbook's own dropdown: Material, Internal Labour, External Labour, Transport.
@@ -22,6 +23,8 @@ version and date and open a fresh one above.
 - Adding, editing and ticking a cost work again — every write to `Project costs` was landing past the last column and being rejected.
 - A failure on the project screen no longer blames the network when the server was reachable.
 - An amount that cannot be read shows as "—" instead of 0.00, which looked like a real figure.
+- Ticking a cost invoiced no longer refetches the whole project — one tap, one request.
+- Failures on the project screen now look like failures, instead of borrowing the amber used for notices.
 - Date fields no longer overflow their card on iOS.
 - Form fields in a card now share one height — the date field no longer sits a few pixels off from the ones beside it.
 

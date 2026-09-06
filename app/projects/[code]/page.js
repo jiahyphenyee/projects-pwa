@@ -14,6 +14,7 @@ import { getUser } from '@/lib/session';
 import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
 import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
+import { summariseProject } from '@/lib/rollups';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const TYPE_LABEL   = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
@@ -109,8 +110,15 @@ export default function ProjectDetailPage({ params }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update');
-      setCosts(prev => prev.map(c => c.id === cost.id ? data.cost : c));
-      await load();
+
+      // Recompute rather than refetch: the row that came back is authoritative and
+      // summariseProject is the same function the route totals with, so the figures
+      // cannot drift — and one tap stays one request.
+      const nextCosts  = costs.map(c => c.id === cost.id ? data.cost : c);
+      const nextTotals = summariseProject(nextCosts, receipted);
+      setCosts(nextCosts);
+      setTotals(nextTotals);
+      writeCache(costsCacheKey(code), { costs: nextCosts, receipted, totals: nextTotals });
     } catch (err) {
       setCosts(prev => prev.map(c => c.id === cost.id ? { ...c, invoiced: cost.invoiced } : c));
       setError(isOffline(err) ? 'Offline — change not saved' : err.message);
@@ -174,10 +182,21 @@ export default function ProjectDetailPage({ params }) {
             </div>
           )}
 
+          {project.status && project.status !== 'active' && (
+            <div style={{
+              background: color.accentLight, color: color.accent,
+              padding: `${space.sm}px ${space.md}px`, borderRadius: radius.md,
+              fontSize: font.size.xs, marginBottom: space.lg,
+            }}>
+              This project is {project.status}. Costs can still be added — a late invoice
+              on a finished job is normal — but check it belongs here first.
+            </div>
+          )}
+
           {error && (
             <p style={{
               padding: `${space.sm}px ${space.md}px`, marginBottom: space.lg,
-              background: color.accentLight, color: color.accent,
+              background: color.dangerLight, color: color.danger,
               borderRadius: radius.md, fontSize: font.size.sm,
             }}>{error}</p>
           )}
