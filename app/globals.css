@@ -38,6 +38,32 @@ button {
   font: inherit;
 }
 
+/* A date input is the only control whose value the browser draws for us, inside a shadow
+   tree that inline styles cannot reach. Left alone, ::-webkit-datetime-edit adds its own
+   padding and baseline, so the field renders a few pixels taller than the text fields
+   beside it and its value sits slightly high — the "not quite consistent" look. Flatten
+   the internals so the token's own padding is what decides the box. */
+input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
+  line-height: 1.2;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  margin: 0;
+  text-align: left;
+}
+
+input[type="date"]::-webkit-inner-spin-button {
+  display: none;
+}
+
+/* Kept, dimmed: it is the only cue that the field opens a picker rather than a keyboard */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
 /* Visible focus for keyboard users without ringing every tap on touch */
 :focus-visible {
   outline: 2px solid #0f766e;

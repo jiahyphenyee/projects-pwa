@@ -206,6 +206,7 @@ a worker with no row there never gets `is_rest_day = TRUE`.
 | I | `closed_date` | |
 | J | `drive_folder_url` | *[corrected] — was undocumented* |
 | K | `notes` | |
+| L | `lock_code` | Site door/gate code. Optional; set from the Projects PWA |
 
 > **[corrected] Column C runs the opposite way to the old doc.** It is a self-populating
 > formula deriving the ID *from* the name, and is protected under the name "autofilled":
@@ -270,26 +271,35 @@ Written by the **Expense PWA**, pushed to Xero. Read-only to the Projects PWA.
 **Non-receipted** costs — external labour, transport, materials bought without a receipt. Owned by
 the **Projects PWA**. **Not linked to Xero.** Header row 1, `ℹ` note row 2, data from row 3.
 
+**14 columns, A:N.** *[corrected 2026-09-06 — the doc listed 15, with `category_name` at H.
+That column was deleted from the workbook; the app now joins the trade's display name from
+`Categories` on read.]* A write past N is rejected by the API as "exceeds grid limits", never
+truncated, so any code writing this tab must be exactly 14 wide.
+
 | Col | Field | Notes |
 |---|---|---|
 | A | `cost_id` | `PC-0001`, max+1 over surviving rows |
 | B | `created_at` | ISO 8601 with `+08:00`; stays text |
 | C | `project_code` | FK → Projects |
-| D | `display_address` | Snapshot at entry |
+| D | `project_name` | Snapshot at entry. *[corrected — doc called this `display_address`.]* Blank on all rows imported from Xero |
 | E | `cost_date` | Real date, `d mmm yyyy` |
-| F | `cost_type` | `material` \| `external_labour` \| `transport` |
-| G | `category_code` | FK → Categories |
-| H | `category_name` | Plain-text snapshot, **not** a formula |
-| I | `description` | The row's label in the app |
-| J | `amount` | SGD |
-| K | `invoiced` | Checkbox |
-| L | `invoiced_date` | Stamped on tick, cleared on untick |
-| M | `invoice_ref` | Reserved, unused |
-| N | `created_by` | PWA user |
-| O | `updated_at` | ISO 8601 with `+08:00` |
+| F | `cost_type` | `material` \| `labour (internal)` \| `labour (external)` \| `transport` |
+| G | `category_code` | FK → Categories. Blank on roughly half the imported rows |
+| H | `description` | The row's label in the app |
+| I | `amount` | SGD |
+| J | `invoiced` | Checkbox |
+| K | `invoiced_date` | Stamped on tick, cleared on untick |
+| L | `invoice_ref` | Reserved, unused |
+| M | `created_by` | PWA user, or `Xero import` |
+| N | `updated_at` | ISO 8601 with `+08:00` |
+
+**`cost_type` is validated by the column's own dropdown**, whose list is the four values
+above. A value the app invents is accepted by the API but sits outside the sheet's own
+validation — 372 rows were written as `external_labour` that way before the app was
+reconciled with the list. The app normalises those on read.
 
 **Two dimensions by design:** `cost_type` is the nature of the spend, `category_code` the
-trade. A plumbing job's subcontracted labour is `external_labour` + `PLMB`.
+trade. A plumbing job's subcontracted labour is `labour (external)` + `PLMB`.
 
 ### 5.11–5.14 Invoices / Payments / Payment allocations / Payroll / Reports
 
@@ -480,7 +490,7 @@ Neither holds tab names — those come from `getTab()`.
 Every rule here was found by hitting it.
 
 1. **Never `.slice(1)`.** Note rows sit inside data. Filter by ID prefix.
-2. **Never write `Projects` column C.** Protected and self-populating. Write `A:B` and `D:K`.
+2. **Never write `Projects` column C.** Protected and self-populating. Write `A:B` and `D:L`.
 3. **Never insert or delete rows in `Projects`.** Structural changes hit the protected
    column and are rejected — including `insertDataOption: 'INSERT_ROWS'`. Clear values instead.
 4. **Never `append` into a tab with a checkbox column.** A checkbox reports `FALSE` on

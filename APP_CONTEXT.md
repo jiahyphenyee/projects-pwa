@@ -15,7 +15,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `writeAfterLast`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
 | `lib/constants.js` | Shared constants. Never tab names — those come from `getTab()`. |
 | `lib/useProjects.js` | Stale-while-revalidate project cache + prebuilt search index. The single source of project data on the client. |
-| `lib/projects.js` | Server-side project creation (works around the protected column C). |
+| `lib/projects.js` | Server-side project creation and lock-code edits (works around the protected column C). |
 | `lib/costs.js` | Server-side cost CRUD against the `Project costs` tab. |
 | `lib/expenses.js` | READ-ONLY view of the receipted `Expenses` tab. Never writes. |
 | `lib/rollups.js` | All cost aggregation, and the `GEN-000` exclusion rule. |
@@ -34,17 +34,19 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 
 - **Never `.slice(1)` a sheet range.** This workbook has free-text `ℹ` note rows *inside* data ranges — `Projects` row 2, `Expenses` row 4. Filter by ID prefix instead (`/^PRJ-/`, `/^EXP-/`, `/^PC-/`). Use `readTab()`, which enforces this.
 - **Never hardcode a tab name.** Use `getTab('PROJECT_COSTS')`. Tab names live in `System config` as `TAB_*` keys and may be renamed without code changes.
-- **Always quote tab names in A1 ranges.** `'Project costs'!A:O` is valid; `Project costs!A:O` is a 400. Use `range()`.
+- **Always quote tab names in A1 ranges.** `'Project costs'!A:N` is valid; `Project costs!A:N` is a 400. Use `range()`.
 - **Every string written to Sheets goes through `safe()`.** A leading `= + - @ |` is otherwise parsed as a formula.
-- **`Projects` column C (`client_id`) is a protected, self-populating column.** It auto-fills `=IFERROR(INDEX(Contacts!A:A, MATCH(D<row>, Contacts!B:B, 0)), "")`, deriving the ID *from* `client_name` in column D — the reverse of what `SYSTEM_REFERENCE.md` claims. Never write to it: it is both unnecessary and blocked by a protected range named "autofilled". Write `A:B` and `D:K` around it.
+- **`Projects` column C (`client_id`) is a protected, self-populating column.** It auto-fills `=IFERROR(INDEX(Contacts!A:A, MATCH(D<row>, Contacts!B:B, 0)), "")`, deriving the ID *from* `client_name` in column D — the reverse of what `SYSTEM_REFERENCE.md` claims. Never write to it: it is both unnecessary and blocked by a protected range named "autofilled". Write `A:B` and `D:L` around it.
 - **Never `appendRow()` into a tab with a checkbox column.** A checkbox reports `FALSE` in every formatted row even when empty, so the API's table detection thinks the table is 1000 rows long and writes below it — outside the date/currency formatting, where dates land as text. Narrowing the search range does not help; detection looks at whole rows. Use `writeAfterLast()` on `Project costs`, and verify the readback since its row choice is not atomic.
 - **Read numerically whenever values are sorted or summed** — `readTab(..., { raw: true })`. Formatted reads give display strings, and `"10 Aug 2026"` sorts before `"9 Aug 2026"`. Cost dates are normalised to ISO via `sheetDateToIso()` and formatted for display with `formatIsoDate()`.
 - **Never use `insertDataOption: 'INSERT_ROWS'` on `Projects`.** Inserting a row is a structural change affecting every column, so it fails against the protected column C even when writing only A:B. `appendRow()` uses the default OVERWRITE, which writes into existing blank rows.
-- **Rows in `Projects` cannot be deleted via the API** for the same reason. Clear `A:B` and `D:K` instead, leaving C's formula.
+- **Rows in `Projects` cannot be deleted via the API** for the same reason. Clear `A:B` and `D:L` instead, leaving C's formula.
 - **IDs are max+1 over existing IDs** (`nextId()`), never a row count. Codes are non-contiguous.
 - **Dates are written as ISO `YYYY-MM-DD` with `USER_ENTERED`.** The workbook locale is `en_US`, so ambiguous formats parse wrongly. Timestamps are written as ISO 8601 *with offset* so Sheets leaves them as text.
 - **Never delete rows in tabs this app does not own** (`Projects`, `Expenses`, `Contacts`, `Categories`). Hard delete is permitted only in `Project costs`, and only via `deleteCost()` / `deleteRowById()`, which re-verify the row's ID immediately before deleting because the API deletes by index and indexes shift.
-- **Editing a cost rewrites `E:J` only.** `project_code`, `display_address`, the invoiced state (`K:L`), `invoice_ref` and `created_by` are deliberately untouched, so correcting an amount can never silently un-bill a line or reassign authorship.
+- **`Project costs` is exactly 14 columns (A:N) and has no `category_name`.** The trade's display name is joined from `Categories` on read. A row wider than the tab is rejected outright by the API — never truncated — so `writeAfterLast()` checks the tab's width first and names the drift rather than letting every insert fail on an opaque "exceeds grid limits".
+- **`cost_type` values must match that column's own dropdown in the workbook** (`material`, `labour (internal)`, `labour (external)`, `transport`). The sheet validates against its list, so a value invented in code is rejected there even where the API accepts it. `COST_TYPE_ALIASES` normalises superseded values on read, so an old row still renders correctly and rewrites itself when next edited.
+- **Editing a cost rewrites `E:I` only.** `project_code`, `project_name`, the invoiced state (`J:K`), `invoice_ref` and `created_by` are deliberately untouched, so correcting an amount can never silently un-bill a line or reassign authorship.
 - **Deleted cost IDs are reused.** `nextId()` is max+1 over surviving rows, so deleting the newest cost frees its ID for the next insert. Fine within the sheet; be careful if a cost ID is ever quoted outside it.
 
 **Business rules**

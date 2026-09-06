@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
+import LockCodeInput from '@/app/components/LockCodeInput';
 import { invalidateProjectsCache } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
@@ -13,6 +14,7 @@ export default function NewProjectPage() {
   const [address, setAddress]     = useState('');
   const [clientName, setClient]   = useState('');
   const [startDate, setStartDate] = useState(todayLocal);
+  const [lockCode, setLockCode]   = useState('');
   const [clients, setClients]     = useState([]);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
@@ -39,7 +41,7 @@ export default function NewProjectPage() {
       const res = await fetch('/api/projects', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ displayAddress: address, clientName, startDate, force }),
+        body:    JSON.stringify({ displayAddress: address, clientName, startDate, lockCode, force }),
       });
       const data = await res.json();
 
@@ -105,6 +107,12 @@ export default function NewProjectPage() {
             style={dateInput}
           />
         </Field>
+
+        <LockCodeInput
+          value={lockCode}
+          onChange={setLockCode}
+          hint="Optional. Can be added or changed later."
+        />
 
         <p style={{ margin: 0, fontSize: font.size.xs, color: color.muted }}>
           Status will be set to <strong>active</strong>.

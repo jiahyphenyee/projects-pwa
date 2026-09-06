@@ -4,25 +4,37 @@ import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import CostForm from '@/app/components/CostForm';
-import TotalsCard, { formatAmount } from '@/app/components/TotalsCard';
+import TotalsCard, { formatAmount, formatRowAmount } from '@/app/components/TotalsCard';
 import Tag from '@/app/components/Tag';
 import LineRow from '@/app/components/LineRow';
+import LockCodeInput from '@/app/components/LockCodeInput';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
 import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
 import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
+import { summariseProject } from '@/lib/rollups';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
-const TYPE_LABEL = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
+const TYPE_LABEL   = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
+const TYPE_VARIANT = Object.fromEntries(COST_TYPES.map(t => [t.value, t.variant]));
+
+/**
+ * True only for a request that never reached the server. `fetch` rejects with a
+ * TypeError when the network is the problem; anything the route hands back — including
+ * a 500 — arrives as a plain Error and must not be reported as being offline.
+ */
+function isOffline(err) {
+  return err instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false);
+}
 
 export default function ProjectDetailPage({ params }) {
   // Next 16: params is a Promise, unwrapped with use() in client components
   const { code: rawCode } = use(params);
   const code = decodeURIComponent(rawCode);
 
-  const { projects, loading: projectsLoading } = useProjects();
+  const { projects, loading: projectsLoading, refresh: refreshProjects } = useProjects();
   const [userName, setUserName]   = useState('');
   const [costs, setCosts]         = useState([]);
   const [receipted, setReceipted] = useState([]);
@@ -34,7 +46,7 @@ export default function ProjectDetailPage({ params }) {
   const [showReceipted, setShowR] = useState(false);
   const [bulkBusy, setBulkBusy]   = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [staleAt, setStaleAt]     = useState(null);
+  const [stale, setStale]         = useState(null);   // { at, offline }
   const router = useRouter();
 
   const project = useMemo(
@@ -61,18 +73,21 @@ export default function ProjectDetailPage({ params }) {
       if (!res.ok) throw new Error(data.error || 'Could not load costs');
       apply(data);
       writeCache(costsCacheKey(code), data);
-      setStaleAt(null);
+      setStale(null);
       setError('');
     } catch (err) {
       // Fall back to the last copy rather than an empty screen, but say plainly that
       // it is old — silently showing stale money figures would be worse than an error
-      const cached = readCache(costsCacheKey(code));
+      const offline = isOffline(err);
+      const cached  = readCache(costsCacheKey(code));
       if (cached) {
         apply(cached.data);
-        setStaleAt(cached.cachedAt);
-        setError('');
+        setStale({ at: cached.cachedAt, offline });
+        // A server fault is not a network fault. Showing the cache is still right, but
+        // "you are offline" would send someone to check their signal over a broken read.
+        setError(offline ? '' : err.message);
       } else {
-        setError(err.message === 'Failed to fetch' ? 'Offline, and nothing saved for this project yet' : err.message);
+        setError(offline ? 'Offline, and nothing saved for this project yet' : err.message);
       }
     } finally {
       setLoading(false);
@@ -95,11 +110,18 @@ export default function ProjectDetailPage({ params }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update');
-      setCosts(prev => prev.map(c => c.id === cost.id ? data.cost : c));
-      await load();
+
+      // Recompute rather than refetch: the row that came back is authoritative and
+      // summariseProject is the same function the route totals with, so the figures
+      // cannot drift — and one tap stays one request.
+      const nextCosts  = costs.map(c => c.id === cost.id ? data.cost : c);
+      const nextTotals = summariseProject(nextCosts, receipted);
+      setCosts(nextCosts);
+      setTotals(nextTotals);
+      writeCache(costsCacheKey(code), { costs: nextCosts, receipted, totals: nextTotals });
     } catch (err) {
       setCosts(prev => prev.map(c => c.id === cost.id ? { ...c, invoiced: cost.invoiced } : c));
-      setError(err.message === 'Failed to fetch' ? 'Offline — change not saved' : err.message);
+      setError(isOffline(err) ? 'Offline — change not saved' : err.message);
     } finally {
       setPending(null);
     }
@@ -121,7 +143,7 @@ export default function ProjectDetailPage({ params }) {
       if (!res.ok) throw new Error(data.error || 'Could not update');
       await load();
     } catch (err) {
-      setError(err.message === 'Failed to fetch' ? 'Offline — nothing was changed' : err.message);
+      setError(isOffline(err) ? 'Offline — nothing was changed' : err.message);
     } finally {
       setBulkBusy(false);
     }
@@ -160,23 +182,40 @@ export default function ProjectDetailPage({ params }) {
             </div>
           )}
 
+          {project.status && project.status !== 'active' && (
+            <div style={{
+              background: color.accentLight, color: color.accent,
+              padding: `${space.sm}px ${space.md}px`, borderRadius: radius.md,
+              fontSize: font.size.xs, marginBottom: space.lg,
+            }}>
+              This project is {project.status}. Costs can still be added — a late invoice
+              on a finished job is normal — but check it belongs here first.
+            </div>
+          )}
+
           {error && (
             <p style={{
               padding: `${space.sm}px ${space.md}px`, marginBottom: space.lg,
-              background: color.accentLight, color: color.accent,
+              background: color.dangerLight, color: color.danger,
               borderRadius: radius.md, fontSize: font.size.sm,
             }}>{error}</p>
           )}
 
-          {staleAt && (
+          {stale && (
             <div style={{
               padding: `${space.sm}px ${space.md}px`, marginBottom: space.lg,
               background: color.accentLight, color: color.accent,
               borderRadius: radius.md, fontSize: font.size.xs,
             }}>
-              Offline — showing data saved {describeAge(staleAt)}. Changes cannot be saved
-              until you reconnect.
+              {stale.offline ? 'Offline — showing' : 'Showing'} data saved {describeAge(stale.at)}.
+              {stale.offline
+                ? ' Changes cannot be saved until you reconnect.'
+                : ' The figures above may have moved on.'}
             </div>
+          )}
+
+          {!isGeneral && (
+            <LockCodeCard project={project} onSaved={refreshProjects} />
           )}
 
           {!loading && <TotalsCard totals={totals} />}
@@ -327,11 +366,11 @@ function CostRow({ cost, first, busy, onToggle, onEdit }) {
       dimmed={busy}
       onLabelClick={onEdit}
       label={label}
-      amount={formatAmount(cost.amount)}
+      amount={formatRowAmount(cost.amount)}
       meta={formatIsoDate(cost.date)}
       tags={
         <>
-          <Tag variant={cost.costType}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
+          <Tag variant={TYPE_VARIANT[cost.costType]}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
           <Tag variant="neutral">{cost.categoryName || cost.categoryCode}</Tag>
         </>
       }
@@ -344,7 +383,7 @@ function CostRow({ cost, first, busy, onToggle, onEdit }) {
           disabled={busy}
           role="switch"
           aria-checked={cost.invoiced}
-          aria-label={`${label}, ${formatAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
+          aria-label={`${label}, ${formatRowAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
           className="ghost-button"
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -366,5 +405,96 @@ function CostRow({ cost, first, busy, onToggle, onEdit }) {
         </button>
       }
     />
+  );
+}
+
+/**
+ * The site's door or gate code — the one thing on a project row worth editing from a
+ * phone, and usually needed while standing at the door. Shown plainly rather than
+ * masked: anyone who can open the project already has the job.
+ */
+function LockCodeCard({ project, onSaved }) {
+  const saved = project.lockCode || '';
+  const [editing, setEditing] = useState(false);
+  const [value, setValue]     = useState(saved);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+
+  // The project list revalidates in the background, so the field follows what the
+  // sheet says — except while it is being typed in.
+  useEffect(() => { if (!editing) setValue(saved); }, [saved, editing]);
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const res  = await fetch('/api/projects', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ code: project.code, lockCode: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save the lock code');
+      setValue(data.lockCode);
+      setEditing(false);
+      onSaved();
+    } catch (err) {
+      setError(err.message === 'Failed to fetch' ? 'Offline — the lock code was not saved' : err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
+      {editing ? (
+        <>
+          <LockCodeInput value={value} onChange={setValue} autoFocus />
+          <div style={{ display: 'flex', gap: space.md, marginTop: space.md }}>
+            <button
+              onClick={() => { setEditing(false); setValue(saved); setError(''); }}
+              disabled={saving}
+              style={{ ...button.secondary, flex: 1, fontSize: font.size.sm, padding: '11px 14px' }}
+            >Cancel</button>
+            <button
+              onClick={save}
+              disabled={saving}
+              style={{ ...button.primary, flex: 1, fontSize: font.size.sm, padding: '11px 14px', opacity: saving ? 0.5 : 1 }}
+            >{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+          <p style={{ margin: `${space.sm}px 0 0`, fontSize: font.size.xs, color: color.muted }}>
+            Leave it empty to clear the code.
+          </p>
+        </>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: space.md }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: font.size.xs, color: color.muted }}>Lock code</div>
+            <div style={{
+              fontSize: saved ? font.size.md : font.size.sm,
+              fontWeight: saved ? 600 : 400,
+              color: saved ? color.text : color.muted,
+              marginTop: 2,
+              lineHeight: 1.45,
+              whiteSpace: 'pre-wrap',     // a sentence may carry its own line breaks
+              overflowWrap: 'anywhere',   // …and an unbroken code must not widen the card
+            }}>{saved || 'Not set'}</div>
+          </div>
+          <button
+            onClick={() => { setEditing(true); setError(''); }}
+            style={{ ...button.secondary, flexShrink: 0, fontSize: font.size.sm, padding: '9px 14px' }}
+          >{saved ? 'Edit' : 'Add'}</button>
+        </div>
+      )}
+
+      {error && (
+        <p style={{
+          margin: `${space.md}px 0 0`, padding: `${space.sm}px ${space.md}px`,
+          background: color.dangerLight, color: color.danger,
+          borderRadius: radius.md, fontSize: font.size.sm,
+        }}>{error}</p>
+      )}
+    </section>
   );
 }

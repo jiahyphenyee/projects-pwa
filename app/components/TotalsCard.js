@@ -6,6 +6,15 @@ export function formatAmount(n) {
   return (n || 0).toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * A single row's amount. An unreadable cell shows as an em dash, never as 0.00 — a
+ * total may legitimately be zero, but a line item that renders zero because its cell
+ * could not be parsed is a broken read wearing the costume of a real figure.
+ */
+export function formatRowAmount(n) {
+  return n === null || n === undefined ? '—' : formatAmount(n);
+}
+
 export default function TotalsCard({ totals }) {
   if (!totals) return null;
   const hasReceipted = totals.receiptedCount > 0;

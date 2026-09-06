@@ -19,7 +19,9 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
   const [costType, setCostType] = useState(cost?.costType || DEFAULT_COST_TYPE);
   const [category, setCategory] = useState(cost?.categoryCode || '');
   const [description, setDesc]  = useState(cost?.description || '');
-  const [amount, setAmount]     = useState(cost ? String(cost.amount) : '');
+  // `?? ''` not String(cost.amount): an unreadable amount arrives as null, and
+  // String(null) would prefill the field with the word "null"
+  const [amount, setAmount]     = useState(cost?.amount ?? '');
   const [categories, setCats]   = useState([]);
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -47,8 +49,8 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
         body:    JSON.stringify(editing
           ? { id: cost.id, date, costType, categoryCode: category, description, amount: amountValue }
           : {
-              projectCode:    project.code,
-              displayAddress: project.address,
+              projectCode: project.code,
+              projectName: project.address,
               date, costType, categoryCode: category,
               description, amount: amountValue,
               createdBy: userName,
@@ -93,7 +95,10 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
       </Field>
 
       <Field label="Type">
-        <div style={{ display: 'flex', gap: space.sm }}>
+        {/* Two columns, not one row: four labels as long as "External Labour" cannot sit
+            side by side on a phone without wrapping mid-word or shrinking below the
+            type scale. minWidth:0 lets each cell shrink inside the grid. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: space.sm }}>
           {COST_TYPES.map(t => {
             const on = costType === t.value;
             return (
@@ -101,7 +106,7 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
                 key={t.value}
                 onClick={() => setCostType(t.value)}
                 style={{
-                  flex: 1, padding: `${space.md}px ${space.xs}px`,
+                  minWidth: 0, padding: `${space.md}px ${space.sm}px`,
                   borderRadius: radius.md, cursor: 'pointer',
                   fontSize: font.size.sm, fontWeight: on ? 600 : 400,
                   fontFamily: font.stack,
