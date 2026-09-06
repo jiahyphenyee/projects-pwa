@@ -39,7 +39,7 @@ export default function ProjectRow({ project, userName, showCode = true }) {
           flex:       1,
           minWidth:   0,
         }}>
-          {project.address || project.projectName || project.code}
+          {project.address || project.code}
         </span>
         {showCode && (
           <span style={{

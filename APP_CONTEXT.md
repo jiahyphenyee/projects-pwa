@@ -57,6 +57,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **`GEN-000` is excluded from every cross-project rollup.** It is the general company expense bucket and is browsable like any project, but counting it in aggregates inflates project costs with overheads. Apply the exclusion in `lib/rollups.js` only.
 - **A project with no client is a direct company job**, not incomplete data. Never treat a blank `client_name`/`client_id` as an error or prompt to fix it; in client-based rollups these belong to the company itself, not to an "unknown client" bucket.
 - **`display_address` is immutable** once a project has linked rows — it is stored denormalised across timesheets, expenses and invoices.
+- **`display_address` is the only name a project has. `Projects.project_name` (column E) is deprecated** — never read or write it. It was a copy of B that went stale: blank on 5 projects, drifted on 2, and referenced by nothing. Every formula, dropdown and denormalised row in the workbook joins on column B.
+- **Never delete a column from `Projects`.** Both this app and `expense-pwa` read that tab by index (`row[7]` status, `row[11]` lock_code), so removing the dead column E would silently shift every later field and empty the expense app's project picker. Deprecated columns stay in place.
 
 **Offline**
 

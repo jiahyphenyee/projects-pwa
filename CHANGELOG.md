@@ -25,6 +25,9 @@ version and date and open a fresh one above.
 - An amount that cannot be read shows as "—" instead of 0.00, which looked like a real figure.
 - Ticking a cost invoiced no longer refetches the whole project — one tap, one request.
 - Failures on the project screen now look like failures, instead of borrowing the amber used for notices.
+
+[Removed]
+- `project_name` — a project is identified by its address alone, which is what every other tab already joins on.
 - Date fields no longer overflow their card on iOS.
 - Form fields in a card now share one height — the date field no longer sits a few pixels off from the ones beside it.
 

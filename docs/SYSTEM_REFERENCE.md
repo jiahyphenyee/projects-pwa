@@ -199,7 +199,7 @@ a worker with no row there never gets `is_rest_day = TRUE`.
 | B | `display_address` | **Required. Never change after use.** |
 | C | `client_id` | **[corrected] FORMULA, and a protected range** — see below |
 | D | `client_name` | **The typed value.** Must match `Contacts.company_name` exactly |
-| E | `project_name` | Copy of `display_address` |
+| E | ~~`project_name`~~ | **Deprecated 2026-09-06 — do not read or write.** Was a copy of B that went stale: blank on 5 projects, drifted on 2, referenced by no formula, dropdown or app. Values left in place and the header marked, because both PWAs read this tab by column index and deleting it would shift every field after it |
 | F | `start_date` | |
 | G | `end_date` | |
 | H | `status` | active / on-hold / closed |
@@ -220,6 +220,17 @@ Browsable and can hold costs, but **must be excluded from every cross-project ro
 
 **A blank client is meaningful:** it denotes a job taken directly by the company rather
 than through an interior designer or main contractor. Not missing data.
+
+**`display_address` is the project's only name.** Everything in the workbook joins on
+column B — `Timesheets.E` (`INDEX(Projects!A:A, MATCH(F, Projects!B:B, 0))`), the
+`Timesheets.F` project dropdown (`=Projects!$B$3:$B`), `Receipted expenses.D` and
+`Invoices.F` (both `VLOOKUP(…, Projects!A:B, 2, 0)`), and the `display_address` column on
+`Project costs`. Nothing anywhere references column E.
+
+> **Do not delete a column from this tab.** Both PWAs read it positionally — this app
+> takes `row[11]` for `lock_code`, `expense-pwa` reads `A:H` and takes `row[7]` for
+> `status`. Removing the deprecated column E would shift F onward by one and silently
+> empty the expense app's project picker. Deprecated columns are marked, not removed.
 
 ### 5.6 Contacts
 
@@ -281,7 +292,7 @@ truncated, so any code writing this tab must be exactly 14 wide.
 | A | `cost_id` | `PC-0001`, max+1 over surviving rows |
 | B | `created_at` | ISO 8601 with `+08:00`; stays text |
 | C | `project_code` | FK → Projects |
-| D | `project_name` | Snapshot at entry, holding `Projects.display_address` — that is what the app writes and what the 1220 imported rows were backfilled with on 2026-09-06. Column B, not `Projects.project_name`: B is never blank and never drifts. *[corrected — doc called this column `display_address`.]* |
+| D | `display_address` | Snapshot at entry. Header renamed from `project_name` on 2026-09-06 to match what it holds; all 1220 imported rows were backfilled from `Projects.B` the same day |
 | E | `cost_date` | Real date, `d mmm yyyy` |
 | F | `cost_type` | `material` \| `labour (internal)` \| `labour (external)` \| `transport` |
 | G | `category_code` | FK → Categories. Blank on roughly half the imported rows |

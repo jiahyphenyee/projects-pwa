@@ -50,7 +50,7 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
           ? { id: cost.id, date, costType, categoryCode: category, description, amount: amountValue }
           : {
               projectCode: project.code,
-              projectName: project.address,
+              displayAddress: project.address,
               date, costType, categoryCode: category,
               description, amount: amountValue,
               createdBy: userName,
