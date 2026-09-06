@@ -281,7 +281,7 @@ truncated, so any code writing this tab must be exactly 14 wide.
 | A | `cost_id` | `PC-0001`, max+1 over surviving rows |
 | B | `created_at` | ISO 8601 with `+08:00`; stays text |
 | C | `project_code` | FK → Projects |
-| D | `project_name` | Snapshot at entry. *[corrected — doc called this `display_address`.]* Blank on all rows imported from Xero |
+| D | `project_name` | Snapshot at entry, holding `Projects.display_address` — that is what the app writes and what the 1220 imported rows were backfilled with on 2026-09-06. Column B, not `Projects.project_name`: B is never blank and never drifts. *[corrected — doc called this column `display_address`.]* |
 | E | `cost_date` | Real date, `d mmm yyyy` |
 | F | `cost_type` | `material` \| `labour (internal)` \| `labour (external)` \| `transport` |
 | G | `category_code` | FK → Categories. Blank on roughly half the imported rows |
@@ -296,7 +296,8 @@ truncated, so any code writing this tab must be exactly 14 wide.
 **`cost_type` is validated by the column's own dropdown**, whose list is the four values
 above. A value the app invents is accepted by the API but sits outside the sheet's own
 validation — 372 rows were written as `external_labour` that way before the app was
-reconciled with the list. The app normalises those on read.
+reconciled with the list, and were migrated to `labour (external)` on 2026-09-06. Every
+row now sits inside the dropdown.
 
 **Two dimensions by design:** `cost_type` is the nature of the spend, `category_code` the
 trade. A plumbing job's subcontracted labour is `labour (external)` + `PLMB`.
