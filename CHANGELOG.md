@@ -28,6 +28,9 @@ version and date and open a fresh one above.
 
 [Removed]
 - `project_name` — a project is identified by its address alone, which is what every other tab already joins on.
+
+[Added]
+- Sheet tabs are checked against the columns the app expects, so a column added or removed in the workbook fails loudly instead of quietly shifting every figure after it.
 - Date fields no longer overflow their card on iOS.
 - Form fields in a card now share one height — the date field no longer sits a few pixels off from the ones beside it.
 

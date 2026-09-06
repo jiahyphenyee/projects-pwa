@@ -1,28 +1,19 @@
 // Reads every project. The list is small (tens of rows), so it ships whole and the
 // client searches and pages it locally — no per-keystroke round trips.
 
-import { getTab, readTab } from '@/lib/sheets';
-import { createProject, updateProjectLockCode } from '@/lib/projects';
+import { readTab } from '@/lib/sheets';
+import { createProject, updateProjectLockCode, projectsTab, PROJECT_COL } from '@/lib/projects';
 
-// Projects tab column order
-const COL = {
-  code:        0,  // A project_code
-  address:     1,  // B display_address
-  clientId:    2,  // C client_id  — FORMULA, derived from client_name. Never write directly.
-  clientName:  3,  // D client_name
-  startDate:   5,  // F start_date
-  endDate:     6,  // G end_date
-  status:      7,  // H status
-  closedDate:  8,  // I closed_date
-  lockCode:    11, // L lock_code
-};
+// Column map and header check both live in lib/projects.js — one definition, so the
+// route and the writer can never disagree about where a field is.
+const COL = PROJECT_COL;
 
 // Matches real project rows only — the tab has an "ℹ" note row at row 2
 const PROJECT_ID = /^(PRJ-|GEN-)/;
 
 export async function GET() {
   try {
-    const tab  = await getTab('PROJECTS');
+    const tab  = await projectsTab();
     const rows = await readTab(tab, 'A:L', PROJECT_ID);
 
     // Sheet order is creation order (rows are appended), so the tail is newest.
