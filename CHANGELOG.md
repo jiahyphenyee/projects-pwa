@@ -14,10 +14,14 @@ version and date and open a fresh one above.
 - Optional lock code on a project, set when creating it and editable from the project screen.
 
 [Changed]
-- Cost type `labour` renamed to `external_labour` ("External Labour"), so it names subcontracted labour only.
+- Cost types now match the workbook's own dropdown: Material, Internal Labour, External Labour, Transport.
 - The blank client option on the new-project form now reads "No client (under HFC)" — it means company-direct work, not missing data.
 
 [Fixed]
+- Project costs were read one column out: amounts appeared as the row's label, every total read 0.00, and invoiced costs showed as unbilled.
+- Adding, editing and ticking a cost work again — every write to `Project costs` was landing past the last column and being rejected.
+- A failure on the project screen no longer blames the network when the server was reachable.
+- An amount that cannot be read shows as "—" instead of 0.00, which looked like a real figure.
 - Date fields no longer overflow their card on iOS.
 - Form fields in a card now share one height — the date field no longer sits a few pixels off from the ones beside it.
 
