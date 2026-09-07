@@ -15,56 +15,35 @@ export function formatRowAmount(n) {
   return n === null || n === undefined ? '—' : formatAmount(n);
 }
 
+/**
+ * What a project has cost. One figure.
+ *
+ * It used to break the total down by which system tracked the spend — "not from expense
+ * app" against "from expense app". That is a fact about our plumbing, not about the job,
+ * and it sat at the top of the screen competing with the number people actually open this
+ * page for. The split is still available where it is asked for: the filters over the cost
+ * list total whatever subset you select.
+ */
 export default function TotalsCard({ totals }) {
   if (!totals) return null;
-  const hasReceipted = totals.receiptedCount > 0;
+
+  const count = totals.ownCount + totals.receiptedCount;
 
   return (
-    <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
-      <Line
-        label="Non-receipted costs"
-        sub={`${totals.ownCount} ${totals.ownCount === 1 ? 'entry' : 'entries'}`}
-        value={totals.ownTotal}
-      />
-      <Line label="of which invoiced" value={totals.invoiced} indent tone={color.success} />
-      <Line label="not invoiced"      value={totals.notInvoiced} indent tone={color.accent} />
-
-      {hasReceipted && (
-        <Line
-          label="Receipted (in Xero)"
-          sub={`${totals.receiptedCount} ${totals.receiptedCount === 1 ? 'expense' : 'expenses'}`}
-          value={totals.receiptedTotal}
-        />
-      )}
-
-      <div style={{ borderTop: `1px solid ${color.border}`, marginTop: space.md, paddingTop: space.md }}>
-        <Line label="Total project cost" value={totals.grandTotal} strong />
-      </div>
-    </section>
-  );
-}
-
-function Line({ label, sub, value, indent, strong, tone }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-      gap: space.md, padding: '5px 0', paddingLeft: indent ? space.lg : 0,
+    <section style={{
+      ...card, padding: space.lg, marginBottom: space.lg,
+      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: space.md,
     }}>
-      <span style={{
-        fontSize: strong ? font.size.md : font.size.sm,
-        fontWeight: strong ? 600 : 400,
-        color: tone || (indent ? color.muted : color.text),
-      }}>
-        {label}
-        {sub && <span style={{ color: color.subtle, fontSize: font.size.xs }}> · {sub}</span>}
+      <span style={{ fontSize: font.size.md, fontWeight: 600, color: color.text }}>
+        Total project cost
+        <span style={{ color: color.subtle, fontSize: font.size.xs, fontWeight: 400 }}>
+          {' · '}{count} {count === 1 ? 'expense' : 'expenses'}
+        </span>
       </span>
       <span style={{
-        fontSize: strong ? font.size.lg : font.size.sm,
-        fontWeight: strong ? 600 : 500,
-        fontVariantNumeric: 'tabular-nums',
-        color: tone || color.text,
-        flexShrink: 0,
-      }}>{formatAmount(value)}</span>
-    </div>
+        fontSize: font.size.xl, fontWeight: 600,
+        fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+      }}>{formatAmount(totals.grandTotal)}</span>
+    </section>
   );
 }

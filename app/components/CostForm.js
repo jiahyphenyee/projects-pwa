@@ -90,11 +90,62 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
 
   return (
     <div style={{ display: 'grid', gap: space.lg }}>
+      {/* First, not last: it is the row's label, so it is what the person is actually
+          naming. The fields under it are all defaulted or picked. */}
+      <Field label="Description" hint="Optional. Shown as the row's main label.">
+        <input
+          value={description}
+          onChange={e => setDesc(e.target.value)}
+          placeholder="e.g. 2 workers, half day"
+          autoComplete="off"
+          style={input}
+        />
+      </Field>
+
+      <Field label="Amount">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={amount}
+          onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+          placeholder="0.00"
+          style={{ ...input, fontVariantNumeric: 'tabular-nums' }}
+        />
+      </Field>
+
       <Field label="Date">
         <input type="date" value={date} onChange={e => setDate(e.target.value)} style={dateInput} />
       </Field>
 
-      <Field label="Type">
+      <Field label="Category">
+        {/* `appearance: none` is needed to stop iOS drawing its own oversized control,
+            but it takes the disclosure arrow with it and leaves the field looking like a
+            text input. The chevron is drawn back as a background image — an inline SVG so
+            it needs no network request and no extra element inside the label. */}
+        <select
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+          style={{
+            ...input,
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.75' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: `right ${space.md}px center`,
+            // Room for the chevron, so a long category name never runs underneath it
+            paddingRight: 38,
+          }}
+        >
+          <option value="">Select a category…</option>
+          {categories.map(c => (
+            <option key={c.code} value={c.code}>{c.name}</option>
+          ))}
+        </select>
+      </Field>
+
+      {/* Last: it is the only field already answered on arrival, and the one a person is
+          least likely to change. */}
+      <Field label="Cost type">
         {/* Two columns, not one row: four labels as long as "External Labour" cannot sit
             side by side on a phone without wrapping mid-word or shrinking below the
             type scale. minWidth:0 lets each cell shrink inside the grid. */}
@@ -118,40 +169,6 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
             );
           })}
         </div>
-      </Field>
-
-      <Field label="Category">
-        <select
-          value={category}
-          onChange={e => setCategory(e.target.value)}
-          style={{ ...input, appearance: 'none' }}
-        >
-          <option value="">Select a category…</option>
-          {categories.map(c => (
-            <option key={c.code} value={c.code}>{c.name}</option>
-          ))}
-        </select>
-      </Field>
-
-      <Field label="Amount">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={amount}
-          onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-          placeholder="0.00"
-          style={{ ...input, fontVariantNumeric: 'tabular-nums' }}
-        />
-      </Field>
-
-      <Field label="Description" hint="Optional. Shown as the row's main label.">
-        <input
-          value={description}
-          onChange={e => setDesc(e.target.value)}
-          placeholder="e.g. 2 workers, half day"
-          autoComplete="off"
-          style={input}
-        />
       </Field>
 
       {editing && cost.invoiced && (
