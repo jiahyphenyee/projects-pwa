@@ -319,7 +319,7 @@ trade. A plumbing job's subcontracted labour is `labour (external)` + `PLMB`.
 ### 5.10a Receipted expense invoicing  *(new 2026-09-07)*
 
 Whether a **receipted** expense has been billed on to a client. Owned by the **Projects
-PWA**. Header row 1, data from row 2 — no `ℹ` note row.
+PWA**. Header row 1, `ℹ` note row 2, data from row 3 — the same shape as `Project costs`.
 
 Exists because the state has nowhere else to live. `Receipted expenses` belongs to the
 Expense PWA and is pushed to Xero, so the Projects PWA must never write to it; but whether
