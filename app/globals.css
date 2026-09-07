@@ -82,4 +82,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     background: #eef2f4;
     color: #1a1d21;
   }
+
+  /* Only the unselected ones: a selected chip already carries the primary border, and
+     dimming it on hover would read as deselecting it. */
+  .filter-chip[aria-pressed="false"]:hover {
+    border-color: #9ca3af;
+    background: #fafbfb;
+  }
 }

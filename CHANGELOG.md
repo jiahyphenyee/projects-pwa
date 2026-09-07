@@ -11,10 +11,25 @@ version and date and open a fresh one above.
 ## Unreleased
 
 [Added]
+- Receipted expenses can now be marked invoiced, so client-charged spend is tracked in one place instead of only for costs entered here.
+- Filter a project's costs by category (several at once) and by invoiced state, with the number of rows and their total shown against the selection.
 - Optional lock code on a project, set when creating it and editable from the project screen.
 - The project screen now says when a project is on hold or closed.
 
 [Changed]
+- A project shows one cost list — receipted expenses sit alongside the rest, newest first, rather than in a separate collapsed section. They still cannot be edited here.
+- "Non-receipted costs" is now "Not from expense app": some migrated costs do have a Xero receipt, just not one this system tracks.
+- Cost rows carry one tag, the category code — the same code on both kinds, so a trade no longer reads as "Electrical" on one row and "ELEC" on the next.
+- Where a cost came from, and who was paid, are now plain text beside the date rather than tags.
+- Cost rows lead with their label: it and the amount are now 15px semibold against a 12px supporting line, where the two were a single pixel apart and nothing led.
+- Cost rows have Amount and Invoiced column headers, and more room between them.
+- The amount sits in its own column, level with the tick box, instead of riding high on the label's baseline.
+- The invoiced control is a single tick box beside the row rather than a 118px labelled control under it — the words were a second block of text competing with the label, and on a phone took a third of the row.
+- Tags on a row no longer carry an outline; only a pressable one does, so an outline now means "you can tap this".
+- The category dropdown on the cost form shows a chevron again — stripping the native control to fix its size on iOS had taken the arrow with it.
+- Cost form field order is now description, amount, date, category, cost type — what you type first, then what is merely confirmed.
+- Cost rows no longer show the Material / Labour / Transport tag; the type is still recorded on every cost.
+- The totals card shows the project total alone — the split by source, and the invoiced breakdown, were competing with the one figure the screen exists for.
 - Cost types now match the workbook's own dropdown: Material, Internal Labour, External Labour, Transport.
 - The blank client option on the new-project form now reads "No client (under HFC)" — it means company-direct work, not missing data.
 

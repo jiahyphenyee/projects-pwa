@@ -116,6 +116,7 @@ Tabs in order:
 | Contacts | Core | Clients, suppliers, subcontractors |
 | Timesheets | Core | Manual daily entries |
 | **Receipted expenses** | Core | **Renamed from `Expenses` in v3.0** |
+| **Receipted expense invoicing** | Core | **New 2026-09-07.** Invoiced state for receipted expenses, owned by the Projects PWA |
 | Categories | Reference | Work category list |
 | Public holidays | Reference | SG MOM list |
 | Rest days | Reference | Per-worker rest day |
@@ -159,6 +160,7 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | TAB_PH | Public holidays | |
 | TAB_RESTDAYS | Rest days | |
 | **TAB_PROJECT_COSTS** | **Project costs** | **New v3.0** |
+| **TAB_RECEIPTED_INVOICING** | **Receipted expense invoicing** | **New 2026-09-07** |
 | XERO_ACCESS_TOKEN / REFRESH_TOKEN / TOKEN_EXPIRY | *(auto)* | Written by the expense PWA |
 | GST_RATE | 0.09 | |
 | INVOICE_PREFIX | **INV-2026** | *[corrected] — doc said `INV-`* |
@@ -268,6 +270,7 @@ Written by the **Expense PWA**, pushed to Xero. Read-only to the Projects PWA.
 | M | `admin_status` | pending / approved / rejected |
 | N–O | `approved_by`, `approved_date` | |
 | P–R | `xero_bill_id`, `xero_sync_status`, `xero_sync_error` | Script-written |
+| S | `receipt_status` | *[corrected 2026-09-07 — the doc listed this tab as A:R. The Expense PWA added `receipt_status` at S (`attached` \| `declared_none`) and writes A:S; it reads A:S too.]* |
 
 > **[corrected] Expense IDs are not max+1.** The code uses a row count plus a timestamp
 > suffix: `` `EXP-${rowCount}-${Date.now().slice(-4)}` `` — hence `EXP-092-2143`. Row
@@ -312,6 +315,39 @@ row now sits inside the dropdown.
 
 **Two dimensions by design:** `cost_type` is the nature of the spend, `category_code` the
 trade. A plumbing job's subcontracted labour is `labour (external)` + `PLMB`.
+
+### 5.10a Receipted expense invoicing  *(new 2026-09-07)*
+
+Whether a **receipted** expense has been billed on to a client. Owned by the **Projects
+PWA**. Header row 1, data from row 2 — no `ℹ` note row.
+
+Exists because the state has nowhere else to live. `Receipted expenses` belongs to the
+Expense PWA and is pushed to Xero, so the Projects PWA must never write to it; but whether
+we have charged a client for that spend is a fact about *our* invoicing, not about the
+claim. Keyed by `expense_id` and joined on read.
+
+| Col | Field | Notes |
+|---|---|---|
+| A | `expense_id` | FK → `Receipted expenses.A`. Verified to exist before a row is written |
+| B | `invoiced` | **Plain `TRUE`/`FALSE` text — never a checkbox** (see below) |
+| C | `invoiced_date` | Real date, `d mmm yyyy`. Stamped on tick, cleared on untick |
+| D | `invoice_ref` | Reserved, unused — mirrors `Project costs.L` |
+| E | `updated_at` | ISO 8601 with `+08:00`; stays text |
+
+**Rows are created lazily, on the first tick. An expense with no row here is not
+invoiced** — the tab holds only expenses someone has acted on, not one row per expense.
+Unticking an expense that has no row is a no-op rather than a write.
+
+**Never format column B as a checkbox.** A checkbox reports `FALSE` in every formatted row
+even when empty, which defeats the API's table detection for the whole tab — the same
+failure that forced `Project costs` onto `writeAfterLast()` instead of `append`.
+
+**Never delete a row here** in preference to setting `invoiced = FALSE`; the two are
+equivalent to the app, and clearing the row loses the `updated_at` trail.
+
+If this tab is missing, the Projects PWA reads it as "nothing is invoiced" and still
+renders a project's costs, but any tick fails loudly with a message naming the tab and the
+`TAB_RECEIPTED_INVOICING` key. It never silently drops a write.
 
 ### 5.11–5.14 Invoices / Payments / Payment allocations / Payroll / Reports
 
@@ -391,11 +427,12 @@ app/
 ├── page.js                 PIN login
 ├── home/                   recent 5, search, new project
 ├── projects/               full list, paged client-side
-├── projects/[code]/        totals, costs, invoiced toggle, receipted section
+├── projects/[code]/        totals, one merged cost list, invoiced toggle
 ├── projects/new/           create project
 └── api/  auth · projects · costs · reference
-lib/  google · sheets · projects · costs · expenses · rollups · dates ·
-      localCache · recents · useProjects · useOnline · session · theme · constants
+lib/  google · sheets · projects · costs · expenses · receiptedInvoicing ·
+      rollups · dates · localCache · recents · useProjects · useOnline ·
+      session · theme · constants
 public/sw.js                service worker (production only)
 ```
 
@@ -580,6 +617,7 @@ index maps.
 | 1.0 | 2025 | Initial build |
 | 2.0 | 2026-06 | Expense PWA + Xero integration; receipts moved to Xero attachments |
 | 2.1 | 2026-06 | Expense PWA UX fixes: share sheet, iOS picker, history pagination |
+| **3.1** | **2026-09-07** | **Invoiced tracking extended to receipted expenses.** New `Receipted expense invoicing` tab and `TAB_RECEIPTED_INVOICING` — the state could not go in `Receipted expenses`, which the Projects PWA must not write. The project screen now shows one merged cost list instead of two sections; receipted rows stay read-only there and the API enforces it. Corrected §5.9: that tab is A:S, not A:R. |
 | **3.0** | **2026-08-09** | **Projects PWA built.** New `Project costs` tab and `TAB_PROJECT_COSTS`. `Expenses` renamed to `Receipted expenses`; both apps made config-driven so tab names resolve at runtime. Workbook timezone corrected to Asia/Singapore. Fixed junk note rows leaking into expense history. Corrected the Xero tracking map against the live category list (`WRKR`, `CLEAN` added; `MATL`, `WTRP` removed). Nine documentation corrections — see §22. |
 
 ---

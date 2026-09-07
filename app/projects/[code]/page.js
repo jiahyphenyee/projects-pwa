@@ -7,18 +7,16 @@ import CostForm from '@/app/components/CostForm';
 import TotalsCard, { formatAmount, formatRowAmount } from '@/app/components/TotalsCard';
 import Tag from '@/app/components/Tag';
 import LineRow from '@/app/components/LineRow';
+import FilterChip, { FilterGroup } from '@/app/components/FilterChip';
 import LockCodeInput from '@/app/components/LockCodeInput';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
-import { GENERAL_PROJECT_CODE, COST_TYPES } from '@/lib/constants';
+import { GENERAL_PROJECT_CODE } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
 import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
-import { summariseProject } from '@/lib/rollups';
+import { summariseProject, mergeLines } from '@/lib/rollups';
 import { button, card, color, font, radius, space } from '@/lib/theme';
-
-const TYPE_LABEL   = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
-const TYPE_VARIANT = Object.fromEntries(COST_TYPES.map(t => [t.value, t.variant]));
 
 /**
  * True only for a request that never reached the server. `fetch` rejects with a
@@ -28,6 +26,28 @@ const TYPE_VARIANT = Object.fromEntries(COST_TYPES.map(t => [t.value, t.variant]
 function isOffline(err) {
   return err instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false);
 }
+
+/**
+ * The filter bucket for rows with no category.
+ *
+ * Roughly a third of the imported costs have a blank `category_code`, so without a bucket
+ * of their own a filter would make them unreachable. Lowercase and parenthesised so it can
+ * never collide with a real code, which the workbook validates as 3–6 capitals.
+ */
+const UNCATEGORISED = '(none)';
+
+// "All" is first and is the default: the list's job is to show everything until asked
+// otherwise, and a screen that opens already filtered hides money without saying so.
+// Identical on every row, so every amount's right edge lands in the same place. Wider than
+// the 44px tap target inside it only so the word "Invoiced" fits in the column header —
+// without that header the tick box has nothing to say what it means.
+const ACTION_WIDTH = 58;
+
+const STATUS_FILTERS = [
+  { value: 'all',      label: 'All'           },
+  { value: 'invoiced', label: 'Invoiced'      },
+  { value: 'not',      label: 'Not invoiced'  },
+];
 
 export default function ProjectDetailPage({ params }) {
   // Next 16: params is a Promise, unwrapped with use() in client components
@@ -43,9 +63,10 @@ export default function ProjectDetailPage({ params }) {
   const [error, setError]         = useState('');
   const [adding, setAdding]       = useState(false);
   const [pendingId, setPending]   = useState(null);
-  const [showReceipted, setShowR] = useState(false);
   const [bulkBusy, setBulkBusy]   = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [selected, setSelected]   = useState([]);     // category codes being filtered to
+  const [status, setStatus]       = useState('all');  // all | invoiced | not
   const [stale, setStale]         = useState(null);   // { at, offline }
   const router = useRouter();
 
@@ -53,6 +74,50 @@ export default function ProjectDetailPage({ params }) {
     () => projects.find(p => p.code === code) || null,
     [projects, code]
   );
+
+  // Both cost sources as one list. They are separate tabs with separate rules, but one
+  // thing to the person reading the screen — money spent on this job.
+  const lines = useMemo(() => mergeLines(costs, receipted), [costs, receipted]);
+
+  // Only the categories this project actually uses, so the filter never offers a chip
+  // that would empty the list. Real codes alphabetically, the uncategorised bucket last —
+  // it is a gap in the data, not a trade, and should not head the row.
+  const categories = useMemo(() => {
+    const present = new Set(lines.map(l => l.categoryCode || UNCATEGORISED));
+    return [...present].sort((a, b) =>
+      a === UNCATEGORISED ? 1 : b === UNCATEGORISED ? -1 : a.localeCompare(b)
+    );
+  }, [lines]);
+
+  // A category can disappear while it is selected — the last cost using it gets edited or
+  // deleted. Dropping the stale selection keeps the list from filtering to nothing with no
+  // visible chip to switch off.
+  useEffect(() => {
+    setSelected(prev => {
+      const next = prev.filter(c => categories.includes(c));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [categories]);
+
+  // The two filters intersect: a category AND a billing state, never a union of the two.
+  const visible = useMemo(() => lines.filter(l => {
+    if (status === 'invoiced' && !l.invoiced) return false;
+    if (status === 'not'      &&  l.invoiced) return false;
+    if (selected.length && !selected.includes(l.categoryCode || UNCATEGORISED)) return false;
+    return true;
+  }), [lines, selected, status]);
+
+  const filtering = status !== 'all' || selected.length > 0;
+
+  const filtered = useMemo(() => ({
+    total:    visible.reduce((sum, l) => sum + (l.amount || 0), 0),
+    invoiced: visible.filter(l => l.invoiced).reduce((sum, l) => sum + (l.amount || 0), 0),
+  }), [visible]);
+
+  function clearFilters() {
+    setStatus('all');
+    setSelected([]);
+  }
 
   useEffect(() => { setUserName(getUser()?.name || ''); }, []);
 
@@ -96,42 +161,68 @@ export default function ProjectDetailPage({ params }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Optimistic toggle: the row flips immediately, and reverts if the write fails
-  async function toggleInvoiced(cost) {
-    const next = !cost.invoiced;
-    setPending(cost.id);
-    setCosts(prev => prev.map(c => c.id === cost.id ? { ...c, invoiced: next } : c));
+  /**
+   * Optimistic toggle: the row flips immediately, and reverts if the write fails.
+   *
+   * The line's own `receipted` flag says which list holds it — a project cost keeps its
+   * invoiced state in `Project costs`, a receipted expense in the invoicing tab — but
+   * both come back through the same endpoint in the same shape, so only the local list
+   * being patched differs.
+   */
+  async function toggleInvoiced(line) {
+    const next   = !line.invoiced;
+    const setter = line.receipted ? setReceipted : setCosts;
+    setPending(line.id);
+    setter(prev => prev.map(r => r.id === line.id ? { ...r, invoiced: next } : r));
 
     try {
       const res  = await fetch('/api/costs', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id: cost.id, invoiced: next }),
+        body:    JSON.stringify({ id: line.id, invoiced: next }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update');
 
-      // Recompute rather than refetch: the row that came back is authoritative and
+      // Recompute rather than refetch: the state that came back is authoritative and
       // summariseProject is the same function the route totals with, so the figures
       // cannot drift — and one tap stays one request.
-      const nextCosts  = costs.map(c => c.id === cost.id ? data.cost : c);
-      const nextTotals = summariseProject(nextCosts, receipted);
+      const saved = data.line;
+      const patch = rows => rows.map(r => r.id === line.id
+        ? { ...r, invoiced: saved.invoiced, invoicedDate: saved.invoicedDate }
+        : r);
+
+      const nextCosts     = line.receipted ? costs     : patch(costs);
+      const nextReceipted = line.receipted ? patch(receipted) : receipted;
+      const nextTotals    = summariseProject(nextCosts, nextReceipted);
+
       setCosts(nextCosts);
+      setReceipted(nextReceipted);
       setTotals(nextTotals);
-      writeCache(costsCacheKey(code), { costs: nextCosts, receipted, totals: nextTotals });
+      writeCache(costsCacheKey(code), { costs: nextCosts, receipted: nextReceipted, totals: nextTotals });
     } catch (err) {
-      setCosts(prev => prev.map(c => c.id === cost.id ? { ...c, invoiced: cost.invoiced } : c));
+      setter(prev => prev.map(r => r.id === line.id ? { ...r, invoiced: line.invoiced } : r));
       setError(isOffline(err) ? 'Offline — change not saved' : err.message);
     } finally {
       setPending(null);
     }
   }
 
-  const unbilledCount = costs.filter(c => !c.invoiced).length;
+  const unbilled       = lines.filter(l => !l.invoiced);
+  const unbilledCount  = unbilled.length;
+  const unbilledReceipted = unbilled.filter(l => l.receipted).length;
 
-  // Bulk marking is hard to undo one row at a time, so it asks first
+  // Bulk marking is hard to undo one row at a time, so it asks first. Receipted expenses
+  // are called out by name: they are the ones someone might not expect to be included,
+  // since every other action on them is blocked.
   async function markAllInvoiced() {
-    if (!confirm(`Mark all ${unbilledCount} outstanding ${unbilledCount === 1 ? 'cost' : 'costs'} on this project as invoiced?`)) return;
+    const receiptedNote = unbilledReceipted
+      ? ` This includes ${unbilledReceipted} from the expense app.`
+      : '';
+    if (!confirm(
+      `Mark all ${unbilledCount} outstanding ${unbilledCount === 1 ? 'cost' : 'costs'} ` +
+      `on this project as invoiced?${receiptedNote}`
+    )) return;
     setBulkBusy(true);
     try {
       const res = await fetch('/api/costs', {
@@ -223,10 +314,10 @@ export default function ProjectDetailPage({ params }) {
           <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
             <header style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              marginBottom: adding || costs.length ? space.md : 0,
+              marginBottom: space.sm,
             }}>
               <h2 style={{ margin: 0, fontSize: font.size.md, fontWeight: 600 }}>
-                Costs{costs.length ? ` (${costs.length})` : ''}
+                Costs{lines.length ? ` (${lines.length})` : ''}
               </h2>
               {!adding && (
                 <button
@@ -235,6 +326,96 @@ export default function ProjectDetailPage({ params }) {
                 >+ Add</button>
               )}
             </header>
+
+            {/* The two sources used to be two sections, which made the read-only-ness of
+                receipted rows obvious from the layout. Merged, it has to be said. */}
+            {receipted.length > 0 && (
+              <p style={{
+                margin: `0 0 ${space.md}px`, fontSize: font.size.xs,
+                color: color.muted, lineHeight: 1.5,
+              }}>
+                Rows marked <strong style={{ fontWeight: 600 }}>Receipted</strong> come from the
+                expense app and are already in Xero — they can be marked invoiced here, but not
+                edited. Rejected claims are excluded.
+              </p>
+            )}
+
+            {/* Filtering is a viewing operation — it never changes the totals card above,
+                which always describes the whole project. The figure for what is on screen
+                lives down here, beside the controls that produced it. */}
+            {lines.length > 1 && (
+              <div style={{ marginBottom: space.md }}>
+                <FilterGroup label="Show">
+                  {STATUS_FILTERS.map(f => (
+                    <FilterChip
+                      key={f.value}
+                      selected={status === f.value}
+                      onClick={() => setStatus(f.value)}
+                      ariaLabel={`Show ${f.label.toLowerCase()}`}
+                    >{f.label}</FilterChip>
+                  ))}
+                </FilterGroup>
+
+                {/* Only categories this project actually uses, so a chip can never empty
+                    the list on its own. */}
+                {categories.length > 1 && (
+                  <FilterGroup label="Category">
+                    {categories.map(c => {
+                      const on   = selected.includes(c);
+                      const name = c === UNCATEGORISED ? 'Uncategorised' : c;
+                      return (
+                        <FilterChip
+                          key={c}
+                          selected={on}
+                          ariaLabel={`${name} — ${on ? 'filtering to this' : 'tap to filter'}`}
+                          onClick={() => setSelected(prev =>
+                            on ? prev.filter(x => x !== c) : [...prev, c]
+                          )}
+                        >{name}</FilterChip>
+                      );
+                    })}
+                  </FilterGroup>
+                )}
+
+                {filtering && (
+                  <div
+                    aria-live="polite"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      gap: space.md, marginTop: space.md,
+                      padding: `${space.sm}px ${space.md}px`,
+                      background: color.bg, borderRadius: radius.md,
+                    }}
+                  >
+                    <span style={{ fontSize: font.size.xs, color: color.muted, minWidth: 0 }}>
+                      {visible.length} of {lines.length}
+                      {/* Only meaningful while both states are on screen; under an
+                          Invoiced or Not-invoiced filter it would just restate the filter. */}
+                      {status === 'all' && filtered.invoiced > 0 && (
+                        <> · {formatAmount(filtered.invoiced)} invoiced</>
+                      )}
+                      {' · '}
+                      <button
+                        onClick={clearFilters}
+                        className="ghost-button"
+                        style={{
+                          padding: `2px ${space.xs}px`, margin: `0 -${space.xs}px`,
+                          background: 'transparent', border: 'none', borderRadius: radius.sm,
+                          cursor: 'pointer', fontFamily: font.stack,
+                          fontSize: font.size.xs, fontWeight: 600, color: color.muted,
+                          textDecoration: 'underline', textUnderlineOffset: 2,
+                          WebkitTapHighlightColor: 'transparent',
+                        }}
+                      >Clear</button>
+                    </span>
+                    <span style={{
+                      fontSize: font.size.md, fontWeight: 600,
+                      fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                    }}>{formatAmount(filtered.total)}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {adding && (
               <div style={{
@@ -254,21 +435,45 @@ export default function ProjectDetailPage({ params }) {
               <p style={{ fontSize: font.size.sm, color: color.muted, margin: 0 }}>Loading…</p>
             )}
 
-            {!loading && costs.length === 0 && !adding && (
+            {!loading && lines.length === 0 && !adding && (
               <p style={{ fontSize: font.size.sm, color: color.muted, margin: `${space.md}px 0 0` }}>
                 No costs recorded yet.
               </p>
             )}
 
-            {costs.map((cost, i) => editingId === cost.id ? (
-              <div key={cost.id} style={{
+            {!loading && lines.length > 0 && visible.length === 0 && (
+              <p style={{ fontSize: font.size.sm, color: color.muted, margin: `${space.md}px 0 0` }}>
+                Nothing matches these filters.
+              </p>
+            )}
+
+            {/* Column headers. The tick box is otherwise unlabelled — it lost its words to
+                give the row's own label room — so this is what says what it does. Same flex
+                shape as a row, so the headings land over the columns they name. */}
+            {!loading && visible.length > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: space.sm,
+                paddingBottom: space.sm, borderBottom: `1px solid ${color.border}`,
+                fontSize: 11, fontWeight: 600, color: color.subtle,
+                letterSpacing: 0.3,
+              }}>
+                <span style={{ flex: 1, minWidth: 0 }} />
+                <span style={{ flexShrink: 0 }}>Amount</span>
+                <span style={{ width: ACTION_WIDTH, flexShrink: 0, textAlign: 'center' }}>
+                  Invoiced
+                </span>
+              </div>
+            )}
+
+            {visible.map((line, i) => editingId === line.id ? (
+              <div key={line.id} style={{
                 border: `1px solid ${color.border}`, borderRadius: radius.md,
                 padding: space.lg, margin: `${space.md}px 0`, background: color.bg,
               }}>
                 <CostForm
                   project={project}
                   userName={userName}
-                  cost={cost}
+                  cost={costs.find(c => c.id === line.id)}
                   onCancel={() => setEditingId(null)}
                   onSaved={() => { setEditingId(null); load(); }}
                   onDeleted={() => { setEditingId(null); load(); }}
@@ -276,16 +481,21 @@ export default function ProjectDetailPage({ params }) {
               </div>
             ) : (
               <CostRow
-                key={cost.id}
-                cost={cost}
+                key={line.id}
+                line={line}
                 first={i === 0}
-                busy={pendingId === cost.id}
-                onToggle={() => toggleInvoiced(cost)}
-                onEdit={() => { setAdding(false); setEditingId(cost.id); }}
+                busy={pendingId === line.id}
+                onToggle={() => toggleInvoiced(line)}
+                onEdit={line.editable
+                  ? () => { setAdding(false); setEditingId(line.id); }
+                  : undefined}
               />
             ))}
 
-            {unbilledCount > 0 && (
+            {/* Bulk marking always covers the whole project, so it is withheld while a
+                filter is on. A button reading "Mark 27" under a list showing 6 is how
+                someone bills a client for the wrong thing. */}
+            {unbilledCount > 0 && !filtering && (
               <button
                 onClick={markAllInvoiced}
                 disabled={bulkBusy}
@@ -301,64 +511,51 @@ export default function ProjectDetailPage({ params }) {
                   : `Mark ${unbilledCount} as invoiced`}
               </button>
             )}
-          </section>
 
-          {receipted.length > 0 && (
-            <section style={{ ...card, padding: space.lg }}>
-              <button
-                onClick={() => setShowR(o => !o)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  width: '100%', background: 'transparent', border: 'none',
-                  padding: 0, cursor: 'pointer', fontFamily: font.stack, color: color.text,
-                }}
-              >
-                <span style={{ fontSize: font.size.md, fontWeight: 600 }}>
-                  Receipted ({receipted.length})
-                </span>
-                <span style={{ fontSize: font.size.sm, color: color.muted }}>
-                  {formatAmount(totals?.receiptedTotal)} {showReceipted ? '▴' : '▾'}
-                </span>
-              </button>
-
+            {unbilledCount > 0 && filtering && (
               <p style={{
-                margin: `${space.sm}px 0 0`, fontSize: font.size.xs, color: color.muted,
+                margin: `${space.md}px 0 0`, fontSize: font.size.xs,
+                color: color.muted, textAlign: 'center',
               }}>
-                From the Expenses tab, submitted through the expense app. Read-only here —
-                rejected claims are excluded.
+                Clear the filters to mark everything on this project invoiced.
               </p>
-
-              {showReceipted && (
-                <div style={{ marginTop: space.md }}>
-                  {receipted.map((exp, i) => (
-                    <LineRow
-                      key={exp.id}
-                      label={exp.description || exp.category || exp.id}
-                      amount={formatAmount(exp.amount)}
-                      meta={`${formatIsoDate(exp.date)}${exp.payeeName ? ` · ${exp.payeeName}` : ''}`}
-                      tags={
-                        <>
-                          <Tag variant="receipted">Receipted</Tag>
-                          {exp.category && <Tag variant="neutral">{exp.category}</Tag>}
-                          {exp.status === 'pending' && <Tag variant="notInvoiced">Pending review</Tag>}
-                        </>
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+            )}
+          </section>
         </>
       )}
     </AppShell>
   );
 }
 
-function CostRow({ cost, first, busy, onToggle, onEdit }) {
-  // Description is what identifies the cost to a human; category is metadata, so it
-  // sits in a tag alongside the type, mirroring how receipted rows read.
-  const label = cost.description || cost.categoryName || cost.categoryCode;
+/**
+ * One cost line, of either kind.
+ *
+ * Deliberately one component rather than two: the lists are merged, so any difference in
+ * how they render reads as a difference in what they mean. Only three things actually
+ * differ — the word "Receipted", the payee, and whether the label opens the editor.
+ *
+ * Exactly one tag, the category code. Everything else that merely describes the row —
+ * where it came from, when, who was paid — is quiet grey text next to the date, because a
+ * pill is a claim on the eye and only the trade earns one. The code, not the name, so a
+ * trade reads identically whichever tab the row came from: `Project costs` joins a display
+ * name from `Categories` and the Expenses tab has only the code, and "Electrical" sitting
+ * above "ELEC" looks like two different things.
+ *
+ * The cost type (material / labour / transport) is recorded on every non-receipted cost
+ * and is still written to the sheet, but is not shown here.
+ */
+function CostRow({ line, first, busy, onToggle, onEdit }) {
+  // Description is what identifies the cost to a human. Falling back to the category, use
+  // the readable name rather than the code — a bare "ELEC" as a whole row label is worse
+  // than "Electrical", even though the tag itself is the code.
+  const label = line.description || line.categoryName || line.id;
+
+  // Reads as one quiet clause: what it is, when, and who was paid.
+  const meta = [
+    line.receipted ? 'Receipted' : null,
+    formatIsoDate(line.date),
+    line.payeeName || null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <LineRow
@@ -366,42 +563,45 @@ function CostRow({ cost, first, busy, onToggle, onEdit }) {
       dimmed={busy}
       onLabelClick={onEdit}
       label={label}
-      amount={formatRowAmount(cost.amount)}
-      meta={formatIsoDate(cost.date)}
+      amount={formatRowAmount(line.amount)}
+      meta={meta}
       tags={
         <>
-          <Tag variant={TYPE_VARIANT[cost.costType]}>{TYPE_LABEL[cost.costType] || cost.costType}</Tag>
-          <Tag variant="neutral">{cost.categoryName || cost.categoryCode}</Tag>
+          {line.categoryCode && <Tag variant="neutral">{line.categoryCode}</Tag>}
+          {line.status === 'pending' && <Tag variant="notInvoiced">Pending review</Tag>}
         </>
       }
       action={
-        // Plain by design: this is a state you glance at, not a call to action. The
-        // tick carries the meaning; colour would compete with the type tags.
-        // Editing is reached by tapping the label, which underlines on hover.
+        // The box alone, with no word beside it. The words were a second block of text on
+        // the row competing with the label for the eye, and 118px wide — on a phone that
+        // is a third of the row spent restating what a tick already says. The state is
+        // still named, in the accessible name and by the Show filter above the list.
+        //
+        // The button is a full 44px tap target with a 26px box drawn inside it, so the
+        // target never shrinks below what a thumb needs. Fixed width, like every other
+        // row's, which is what keeps the amounts aligned down the page.
         <button
           onClick={onToggle}
           disabled={busy}
           role="switch"
-          aria-checked={cost.invoiced}
-          aria-label={`${label}, ${formatRowAmount(cost.amount)} — ${cost.invoiced ? 'invoiced' : 'not invoiced'}`}
+          aria-checked={line.invoiced}
+          aria-label={`${label}, ${formatRowAmount(line.amount)} — ${line.invoiced ? 'invoiced' : 'not invoiced'}`}
           className="ghost-button"
           style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            minHeight: 44, padding: `0 ${space.sm}px`, flexShrink: 0,
-            background: 'transparent', border: 'none', borderRadius: radius.sm,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: ACTION_WIDTH, height: 44, flexShrink: 0,
+            background: 'transparent', border: 'none', borderRadius: radius.md,
             cursor: busy ? 'wait' : 'pointer',
-            fontSize: font.size.xs, fontFamily: font.stack,
-            color: cost.invoiced ? color.text : color.muted,
             WebkitTapHighlightColor: 'transparent',
           }}
         >
           <span aria-hidden style={{
-            width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-            border: `1.5px solid ${cost.invoiced ? color.text : color.subtle}`,
-            background: cost.invoiced ? color.text : 'transparent',
-            color: color.surface, fontSize: 12, lineHeight: '16px', textAlign: 'center',
-          }}>{cost.invoiced ? '✓' : ''}</span>
-          {cost.invoiced ? 'Invoiced' : 'Not invoiced'}
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+            border: `1.5px solid ${line.invoiced ? color.primary : color.subtle}`,
+            background: line.invoiced ? color.primary : 'transparent',
+            color: '#fff', fontSize: 15, lineHeight: 1, fontWeight: 700,
+          }}>{line.invoiced ? '✓' : ''}</span>
         </button>
       }
     />
