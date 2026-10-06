@@ -313,14 +313,10 @@ Still open (see Amendments for the ones answered):
 
 - [ ] Stage invoices are one line covering several trades. Which "Service" tracking option
       should they carry: General, none, or the quote's main trade?
-- [ ] Is property type chosen on each quote (as in the mock-up), or set once on the project
-      and carried over?
 - [ ] Should the client-facing quote PDF show section subtotals, or only the editor?
 - [ ] Should past Xero invoices be imported with property type blank, or will William tag
       the common items by type after import?
 - [ ] Are there other units in use beyond pcs, sqft, ft run, lot, room and lumpsum?
-- [ ] What does "Bill now" do on a project with no client (a direct company job)? Needed
-      before Phase 5.
 
 **Out of scope for this build:**
 
@@ -405,6 +401,25 @@ proposed mechanism.
 - A refresh button on the screen, since the service worker caches API reads.
 - Look: mock-up layout and behaviour with the app's own fonts and colours from
   `lib/theme.js` (pending William's view).
+
+**Answered 2026-10-06 (William, via JY)**
+- Property type is set **once per project**, not per quote. New column `property_type`
+  appended to `Projects` as column M (never inserted; both apps read that tab by index).
+  Set on the new-project form; existing projects get asked once when their quote screen
+  first opens. VOs inherit it.
+- Sales account code **200** confirmed.
+- Look: mock-up layout and behaviour, the app's own fonts and colours.
+- Stage invoice tracking option: still pending.
+
+**Answered 2026-10-06 (JY)**
+- Billing requires PIN re-entry on the confirm step, verified server-side. A third user
+  `PWA_USER_3` will be added to System config.
+- **A project must have a client to be billed.** "Bill now" is blocked on a blank-client
+  project with a message saying why. Quotes can still be written and saved for it.
+- `Reports` is unused: delete the whole tab rather than repoint its six formulas, together
+  with `TAB_REPORTS`. `GST_RATE` and `INVOICE_PREFIX` serve only the deleted tabs and no
+  app reads them; they go too.
+- Tests run with `node --test` (built into Node, no dependency).
 
 **Testing.** `XERO_DRY_RUN` defaults to dry-run when unset. Dry-run invoice IDs must be
 clearly fake and never leave a stage looking billed in live data.
