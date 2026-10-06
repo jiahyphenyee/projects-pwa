@@ -311,12 +311,10 @@ Build in five steps, each usable on its own.
 
 Still open (see Amendments for the ones answered):
 
-- [ ] Stage invoices are one line covering several trades. Which "Service" tracking option
-      should they carry: General, none, or the quote's main trade?
-- [ ] Should the client-facing quote PDF show section subtotals, or only the editor?
 - [ ] Should past Xero invoices be imported with property type blank, or will William tag
       the common items by type after import?
-- [ ] Are there other units in use beyond pcs, sqft, ft run, lot, room and lumpsum?
+
+Everything else from the original list is answered in the Amendments.
 
 **Out of scope for this build:**
 
@@ -409,7 +407,19 @@ proposed mechanism.
   first opens. VOs inherit it.
 - Sales account code **200** confirmed.
 - Look: mock-up layout and behaviour, the app's own fonts and colours.
-- Stage invoice tracking option: still pending.
+- Stage invoices carry **no Service tracking option** (left untagged). VO item lines
+  still carry their row's trade.
+- The client PDF does **not** show section subtotals (editor only).
+- **No units beyond** pcs, sqft, ft run, lot, room, lumpsum.
+
+**Apps Script, checked 2026-10-06.** The bound `onEdit` script names `Invoices`,
+`Payments` and `Payment allocations` only as keys in its `ID_CONFIG` lookup table. It
+looks a tab up by name when that tab is edited, so a deleted tab can never trigger it;
+deleting the tabs is safe without touching the script. The three lines can be removed
+for tidiness at any time. The script does not reference `Reports`.
+
+**System config row positions do not matter.** Every key (tokens included) is found by
+name in column A, never by row number, so rows can be inserted or moved freely.
 
 **Answered 2026-10-06 (JY)**
 - Billing requires PIN re-entry on the confirm step, verified server-side. A third user
