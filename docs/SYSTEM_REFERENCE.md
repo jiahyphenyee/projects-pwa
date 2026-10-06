@@ -120,11 +120,12 @@ Tabs in order:
 | Categories | Reference | Work category list |
 | Public holidays | Reference | SG MOM list |
 | Rest days | Reference | Per-worker rest day |
-| Invoices | Output | Line items, status, payment tracking |
-| Payments | Output | Payments received |
-| Payment allocations | Output | Links payments to invoices |
+| ~~Invoices / Payments / Payment allocations / Reports~~ | — | **Deleted 2026-10-06.** Never used beyond one sample row; replaced by the quote tabs below |
 | Payroll | Output | Monthly calculations |
-| Reports | Output | Formula-driven P&L, GST |
+| **Quotes** | Core | **New 2026-10-06.** One row per quote or variation order. Projects PWA only — see §5.15 |
+| **Quote lines** | Core | **New 2026-10-06.** Versioned line rows of every quote |
+| **Payment stages** | Core | **New 2026-10-06.** Stage schedule per quote; billed rows locked |
+| **Price history** | Core | **New 2026-10-06.** Every quoted item, for price suggestions |
 | Plumbing Job Report | Ad hoc | |
 | Plumbing Price List | Ad hoc | |
 
@@ -151,19 +152,21 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | TAB_WORKERS | Workers | |
 | TAB_TIMESHEETS | Timesheets | |
 | TAB_EXPENSES | **Receipted expenses** | Renamed v3.0 |
-| TAB_INVOICES | Invoices | |
-| TAB_PAYMENTS | Payments | |
-| TAB_ALLOCATIONS | Payment allocations | |
 | TAB_PAYROLL | Payroll | |
-| TAB_REPORTS | Reports | |
+| **TAB_QUOTES / TAB_QUOTE_LINES / TAB_PAYMENT_STAGES / TAB_PRICE_HISTORY** | Quotes / Quote lines / Payment stages / Price history | **New 2026-10-06** |
+| **XERO_SALES_ACCOUNT_CODE** | 200 | Sales account on every quote and VO invoice line |
+| **INVOICE_DUE_DAYS** | 14 | Due date = invoice date + this |
+| **QUOTE_UNITS** | pcs, sqft, ft run, lot, room, lumpsum | Unit dropdown |
+| **QUOTE_PROPERTY_TYPES** | HDB, Condo, Commercial | Property type buttons |
+| **STAGE_TRACKING_OPTION** | *(blank)* | Service tracking on stage invoices; blank = untagged |
 | TAB_CATEGORIES | Categories | |
 | TAB_PH | Public holidays | |
 | TAB_RESTDAYS | Rest days | |
 | **TAB_PROJECT_COSTS** | **Project costs** | **New v3.0** |
 | **TAB_RECEIPTED_INVOICING** | **Receipted expense invoicing** | **New 2026-09-07** |
 | XERO_ACCESS_TOKEN / REFRESH_TOKEN / TOKEN_EXPIRY | *(auto)* | Written by the expense PWA |
-| GST_RATE | 0.09 | |
-| INVOICE_PREFIX | **INV-2026** | *[corrected] — doc said `INV-`* |
+| **XERO_PROJECTS_ACCESS_TOKEN / REFRESH_TOKEN / TOKEN_EXPIRY** | *(auto)* | **New 2026-10-06.** The Projects PWA's own Xero connection (separate Xero app registration). Never shared with the expense PWA |
+| ~~GST_RATE~~, ~~INVOICE_PREFIX~~ | — | Deleted 2026-10-06 with the old invoicing tabs; no app read them |
 | COMPANY_NAME / COMPANY_UEN | | |
 | DRIVE_RECEIPTS_FOLDER_ID | *(id)* | *[corrected] — was undocumented* |
 | DRIVE_PAYSLIPS_FOLDER_ID | *(id)* | |
@@ -180,6 +183,7 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | A `category_code` | Short code, no spaces |
 | B `category_name` | Display name |
 | C **`active_codes`** | *[corrected] — doc called this `is_active`.* String `"TRUE"` |
+| E **`xero_tracking_option`** | **New 2026-10-06.** The Xero "Service" option name for this code, e.g. `CEIL` → `Partition / Ceiling`. Blank = send untagged. The one list both apps should read; the expense PWA's hard-coded map is to be retired |
 
 **Live list (14, all active):** PLMB Plumbing · TILE Tiling · PAINT Painting ·
 ELEC Electrical · CARP Carpentry · DISP Disposal · HACK Hacking · GENL General ·
@@ -209,6 +213,7 @@ a worker with no row there never gets `is_rest_day = TRUE`.
 | J | `drive_folder_url` | *[corrected] — was undocumented* |
 | K | `notes` | |
 | L | `lock_code` | Site door/gate code. Optional; set from the Projects PWA |
+| M | `property_type` | **New 2026-10-06.** HDB / Condo / Commercial. Set once per project; every quote and VO inherits it, and price suggestions filter on it |
 
 > **[corrected] Column C runs the opposite way to the old doc.** It is a self-populating
 > formula deriving the ID *from* the name, and is protected under the name "autofilled":
@@ -349,9 +354,54 @@ If this tab is missing, the Projects PWA reads it as "nothing is invoiced" and s
 renders a project's costs, but any tick fails loudly with a message naming the tab and the
 `TAB_RECEIPTED_INVOICING` key. It never silently drops a write.
 
-### 5.11–5.14 Invoices / Payments / Payment allocations / Payroll / Reports
+### 5.11 Payroll
 
 Unchanged from v2.1. Payroll formulas use DATE-range matching, not TEXT conversion.
+
+### 5.12–5.14 ~~Invoices / Payments / Payment allocations / Reports~~
+
+Deleted 2026-10-06. Each held one 2025 sample row; nothing read them except six `Reports`
+formulas, deleted with it. Client invoicing now lives in the quote tabs (§5.15) and in Xero.
+
+### 5.15 Quotes · Quote lines · Payment stages · Price history
+
+Owned and written by the **Projects PWA** only. All four: header row 1, `ℹ` note row 2, data
+from row 3, **no checkbox columns** (booleans are the text `TRUE`/`FALSE`). Column maps and
+headers are declared once in `lib/quoteSchema.mjs` and asserted on first use.
+
+**Quotes** (A:V) — `quote_id` (`Q-0001`) · `project_code` · `kind` (`quote` | `vo`) ·
+`vo_number` · `property_type` (copied from the project at save) · `show_unit` ·
+`discount_mode` (`$` | `%`) · `discount_value` · `subtotal` · `contract_sum` · `status` ·
+`current_version` · `next_line_no` · `xero_invoice_id` · `xero_invoice_number` ·
+`billed_amount` · `billed_at` · `billed_by` · `created_at` · `created_by` · `updated_at` ·
+`updated_by`. One `quote` per project; VOs numbered per project.
+
+**Quote lines** (A:K) — `line_id` (`Q-0001-L7`) · `quote_id` · `version` · `position` ·
+`kind` (`item` | `title`) · `description` · `service` (a `Categories` code) · `qty` · `unit` ·
+`unit_price` · `amount`.
+
+> **Saves are versioned.** Sheets has no transactions, so a save never edits live rows: it
+> appends the lines as version N+1 in one request, then flips `Quotes.current_version` (the
+> commit point), then prunes older versions that no billed stage refers to. Only the version
+> named in `current_version` is live. **Line IDs are never reused** — `next_line_no` only
+> goes up — because `Price history` is keyed on them.
+
+**Payment stages** (A:N) — `stage_id` (`ST-0001`) · `quote_id` · `position` · `name` ·
+`share_pct` · `is_final` · `billed_amount` · `billed_at` · `billed_by` · `xero_invoice_id` ·
+`xero_invoice_number` · `xero_sync_status` · `quote_version` · `updated_at`. Stage amounts
+are **not stored** for unbilled stages; they are computed from the contract sum on read
+(`lib/quoteMaths.mjs`), and the final stage is contract sum minus the rest so the schedule
+always sums to the cent. A row with an `xero_invoice_id` is locked and cannot be removed.
+
+**Price history** (A:N) — `history_id` (`PH-000001`) · `description` · `service` · `unit` ·
+`unit_price` · `qty` · `property_type` · `client` · `quoted_at` · `source` (`quote` | `vo` |
+`xero_import`) · `quote_id` · `line_id` · `xero_invoice_id` · `xero_line_id`. Quote rows are
+upserted on `line_id` and removed when their line is removed, so each saved line has exactly
+one row. Imported rows (Phase 2) are keyed on `xero_line_id` and have a blank
+`property_type`, which means "reference only, never fills a price".
+
+**Test data:** `PRJ-208` "TEST - quote and billing" holds `Q-0001`, written by
+`scripts/sample-quote.mjs` on 2026-10-06. Not a real job.
 
 ---
 
@@ -514,10 +564,10 @@ PWA carries `role` on the session so gating can be added without touching auth.
 | Key | Who changes | Risk if wrong |
 |---|---|---|
 | `TAB_*` | Developer | Both apps fall back to a default name, then fail |
-| `GST_RATE` | Admin | New invoices miscalculate GST |
-| `INVOICE_PREFIX` | Admin | Stale IDs mid-stream |
 | `PWA_USER_*` | Admin | Controls login to both apps |
 | `XERO_*` | Expense PWA only | Manual edits are overwritten or break rotation |
+| `XERO_PROJECTS_*` | Projects PWA only | Same: rewritten on every token refresh |
+| `XERO_SALES_ACCOUNT_CODE`, `INVOICE_DUE_DAYS`, `STAGE_TRACKING_OPTION` | Admin | Next invoice posts to the wrong account, due date or tag |
 
 ---
 
@@ -617,6 +667,7 @@ index maps.
 | 1.0 | 2025 | Initial build |
 | 2.0 | 2026-06 | Expense PWA + Xero integration; receipts moved to Xero attachments |
 | 2.1 | 2026-06 | Expense PWA UX fixes: share sheet, iOS picker, history pagination |
+| **3.2** | **2026-10-06** | **Quote and billing, data layer (Phase 1).** New tabs `Quotes`, `Quote lines`, `Payment stages`, `Price history` (§5.15) with their `TAB_*` keys and five quote config keys. `Projects.M property_type` and `Categories.E xero_tracking_option` appended. Deleted the unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and the `GST_RATE` / `INVOICE_PREFIX` keys. The Projects PWA gained its own Xero app and `XERO_PROJECTS_*` tokens (no Xero writes yet). |
 | **3.1** | **2026-09-07** | **Invoiced tracking extended to receipted expenses.** New `Receipted expense invoicing` tab and `TAB_RECEIPTED_INVOICING` — the state could not go in `Receipted expenses`, which the Projects PWA must not write. The project screen now shows one merged cost list instead of two sections; receipted rows stay read-only there and the API enforces it. Corrected §5.9: that tab is A:S, not A:R. |
 | **3.0** | **2026-08-09** | **Projects PWA built.** New `Project costs` tab and `TAB_PROJECT_COSTS`. `Expenses` renamed to `Receipted expenses`; both apps made config-driven so tab names resolve at runtime. Workbook timezone corrected to Asia/Singapore. Fixed junk note rows leaking into expense history. Corrected the Xero tracking map against the live category list (`WRKR`, `CLEAN` added; `MATL`, `WTRP` removed). Nine documentation corrections — see §22. |
 

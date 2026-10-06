@@ -16,6 +16,12 @@ version and date and open a fresh one above.
 - Optional lock code on a project, set when creating it and editable from the project screen.
 - The project screen now says when a project is on hold or closed.
 - `scripts/xero-auth.mjs` authorises this app's own Xero connection, kept separate from the expense app's so neither can invalidate the other's tokens.
+- Quote data layer: `Quotes`, `Quote lines`, `Payment stages` and `Price history` tabs, `lib/quotes.js` save/load with versioned saves, `lib/quoteMaths.mjs` for every money figure, and `/api/quotes`. No screen yet.
+- `npm test` runs the calculation tests with Node's built-in runner.
+- `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
+
+[Removed]
+- The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
 
 [Changed]
 - A project shows one cost list — receipted expenses sit alongside the rest, newest first, rather than in a separate collapsed section. They still cannot be edited here.

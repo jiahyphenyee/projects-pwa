@@ -28,7 +28,12 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `public/sw.js` | Hand-written service worker. Bump `CACHE_VERSION` on any change to it. |
 | `lib/localCache.js` | localStorage fallback so viewed projects open offline. |
 | `lib/useOnline.js` | Online/offline state for the header banner. |
-| `scripts/` | One-off Node scripts run by hand, never by the app. `xero-auth.mjs` authorises this app's own Xero connection. |
+| `lib/quotes.js` | Quotes, VOs and payment stages: versioned save, load, list. Owns `Quotes`, `Quote lines`, `Payment stages`. |
+| `lib/priceHistory.js` | The `Price history` tab: upsert per saved line, read for suggestions. |
+| `lib/quoteMaths.mjs` | Every money calculation for quotes. Pure; `.mjs` so `node --test` runs it. |
+| `lib/quoteSchema.mjs` | Column maps and headers of the four quote tabs, shared by the server modules and the setup script. |
+| `tests/` | `node --test` unit tests (`npm test`). No runner dependency. |
+| `scripts/` | One-off Node scripts run by hand, never by the app. `xero-auth.mjs` authorises this app's own Xero connection; `setup-quote-billing-tabs.mjs` creates the quote tabs (idempotent); `sample-quote.mjs` is the Phase 1 round-trip check against a running dev server. |
 
 ## Rules to maintain
 
@@ -50,6 +55,17 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **`cost_type` values must match that column's own dropdown in the workbook** (`material`, `labour (internal)`, `labour (external)`, `transport`). The sheet validates against its list, so a value invented in code is rejected there even where the API accepts it — and the API will happily write one, so the sheet is no safety net. Changing the vocabulary means editing the dropdown and migrating the existing rows, not just `COST_TYPES`.
 - **Editing a cost rewrites `E:I` only.** `project_code`, `project_name`, the invoiced state (`J:K`), `invoice_ref` and `created_by` are deliberately untouched, so correcting an amount can never silently un-bill a line or reassign authorship.
 - **Deleted cost IDs are reused.** `nextId()` is max+1 over surviving rows, so deleting the newest cost frees its ID for the next insert. Fine within the sheet; be careful if a cost ID is ever quoted outside it.
+
+**Quotes (data layer; the screen arrives in Phase 3)**
+
+- **Every quote figure goes through `lib/quoteMaths.mjs`.** Integer-cent arithmetic, 2 dp, no GST. The editor, the saved totals, the PDF and the Xero invoice must never compute a figure their own way, or they will disagree by a cent.
+- **Saving a quote never edits its live lines.** New lines are appended as the next `version` in one request; flipping `Quotes.current_version` is the commit point; pruning comes last and may fail harmlessly. Sheets has no transactions, and a half-applied delete-and-rewrite would be a quote with half its rows.
+- **Line IDs are never reused.** `next_line_no` only goes up, so `Price history` (keyed on `line_id`) can never attach a new line to an old item's price.
+- **A billed stage is locked.** Its name, share and amount are read from the sheet, never from the request, and it cannot be removed while it carries a `xero_invoice_id`.
+- **Stage amounts are computed on read, never stored, except for billed ones.** The final payment is contract sum minus every other stage, so the schedule always sums to the contract sum to the cent.
+- **Property type lives on `Projects` column M**, set once per project; a quote copies it at save time. `Projects` is now A:M. Column C stays protected and unwritten.
+- **The quote tabs use `appendRows()` and `deleteRowsByNumbers()`** — this app owns them outright and they have no checkbox columns. Those helpers are never used on shared tabs.
+- **`Categories.E xero_tracking_option` is the one Xero mapping.** Do not add a code→option map in this repo.
 
 **Business rules**
 
