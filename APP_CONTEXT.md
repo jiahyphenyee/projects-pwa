@@ -32,8 +32,10 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/priceHistory.js` | The `Price history` tab: upsert per saved line, read for suggestions. |
 | `lib/quoteMaths.mjs` | Every money calculation for quotes. Pure; `.mjs` so `node --test` runs it. |
 | `lib/quoteSchema.mjs` | Column maps and headers of the four quote tabs, shared by the server modules and the setup script. |
+| `lib/xeroClient.mjs` | Dependency-free Xero API client: token refresh against a pluggable store, 401/429 handling, paging. Used by the app and the scripts. |
+| `lib/xero.js` | The app's Xero connection: token store on `XERO_PROJECTS_*` in System config, `isDryRun()`. |
 | `tests/` | `node --test` unit tests (`npm test`). No runner dependency. |
-| `scripts/` | One-off Node scripts run by hand, never by the app. `xero-auth.mjs` authorises this app's own Xero connection; `setup-quote-billing-tabs.mjs` creates the quote tabs (idempotent); `sample-quote.mjs` is the Phase 1 round-trip check against a running dev server. |
+| `scripts/` | One-off Node scripts run by hand, never by the app; `_shared.mjs` gives them Sheets and Xero access without the `@/` alias. `xero-auth.mjs` authorises this app's own Xero connection; `setup-quote-billing-tabs.mjs` creates the quote tabs (idempotent); `sample-quote.mjs` is the Phase 1 round-trip check against a running dev server; `import-price-history.mjs` and `link-xero-contacts.mjs` are the Phase 2 imports, both read-only against Xero. |
 
 ## Rules to maintain
 
@@ -69,7 +71,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 
 **Business rules**
 
-- **The app itself makes no Xero API calls yet.** The `Expenses` tab is read-only to it. Receipted expenses reach Xero through the sibling `expense-pwa`. Quote and billing will change this; until it ships, only `scripts/xero-auth.mjs` talks to Xero.
+- **This app reads from Xero but does not yet write to it.** The `Expenses` tab is read-only to it; receipted expenses reach Xero through the sibling `expense-pwa`. Every Xero call goes through `lib/xeroClient.mjs`; the one write function arrives in Phase 5 and must honour `isDryRun()`, which is true unless `XERO_DRY_RUN` is exactly `false`.
+- **Never create a Xero contact.** Invoices go against `Contacts.xero_contact_id` (column H) only. The token's contacts scope is read-only, so an attempt fails in Xero as well as in review.
 - **This app has its own Xero app registration and its own tokens**, stored in `System config` as `XERO_PROJECTS_ACCESS_TOKEN` / `_REFRESH_TOKEN` / `_TOKEN_EXPIRY`. Never read or refresh the expense app's `XERO_ACCESS_TOKEN` / `XERO_REFRESH_TOKEN`: Xero refresh tokens are single-use, so two apps sharing one set take turns locking each other out.
 - **Whether a receipted expense has been invoiced is tracked in its own tab**, `Receipted expense invoicing` (`TAB_RECEIPTED_INVOICING`), keyed by `expense_id` and joined on read. That state is a fact about *our* billing, not about the expense claim, so it must not be written into `Expenses` — which stays read-only, and whose every column belongs to `expense-pwa` or its Xero sync. Rows are created lazily on the first tick: **absent means not invoiced**. Non-receipted costs are unaffected; they keep their own state in `Project costs` J:L. Both are normalised to one `{ invoiced, invoicedDate }` shape by `app/api/costs`, so no screen branches on which tab it came from.
 - **Never format `invoiced` in that tab as a checkbox.** Plain `TRUE`/`FALSE` text only. A checkbox column defeats the API's table detection for the whole tab — the same failure that forced `Project costs` onto `writeAfterLast()`.

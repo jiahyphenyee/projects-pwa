@@ -242,8 +242,13 @@ column B — `Timesheets.E` (`INDEX(Projects!A:A, MATCH(F, Projects!B:B, 0))`), 
 ### 5.6 Contacts
 
 `contact_id` · `company_name` · `contact_person` · `email` · `whatsapp_number` ·
-`contact_types` · `notes`. Types are comma-separated: `client`, `supplier`,
-`subcontractor`. Never delete a row. Note row at row 5.
+`contact_types` · `notes` · **`xero_contact_id`** (H, new 2026-10-06). Types are
+comma-separated: `client`, `supplier`, `subcontractor`. Never delete a row. Note row at
+row 5.
+
+`xero_contact_id` is the Xero ContactID the Projects PWA invoices against; a client
+without one cannot be billed. Filled by `scripts/link-xero-contacts.mjs`, which only
+writes pairings a person has confirmed — names in the two systems rarely match exactly.
 
 ### 5.7 Workers
 
@@ -399,6 +404,13 @@ always sums to the cent. A row with an `xero_invoice_id` is locked and cannot be
 upserted on `line_id` and removed when their line is removed, so each saved line has exactly
 one row. Imported rows (Phase 2) are keyed on `xero_line_id` and have a blank
 `property_type`, which means "reference only, never fills a price".
+
+**Imported history:** on 2026-10-06 `scripts/import-price-history.mjs` loaded 1,019 rows
+from 188 past sales invoices (1,121 lines; 102 skipped as description-only, zero or
+negative). Most are quantity-1 lump sums with the size in the description, so their
+`unit_price` is a job price, not a rate. `service` is mapped from the Xero option via
+`Categories.E`; "Plastering" has no category row and is left blank. Re-running adds
+nothing.
 
 **Test data:** `PRJ-208` "TEST - quote and billing" holds `Q-0001`, written by
 `scripts/sample-quote.mjs` on 2026-10-06. Not a real job.
