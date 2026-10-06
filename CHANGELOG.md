@@ -15,6 +15,7 @@ version and date and open a fresh one above.
 - Filter a project's costs by category (several at once) and by invoiced state, with the number of rows and their total shown against the selection.
 - Optional lock code on a project, set when creating it and editable from the project screen.
 - The project screen now says when a project is on hold or closed.
+- `scripts/xero-auth.mjs` authorises this app's own Xero connection, kept separate from the expense app's so neither can invalidate the other's tokens.
 
 [Changed]
 - A project shows one cost list — receipted expenses sit alongside the rest, newest first, rather than in a separate collapsed section. They still cannot be edited here.
