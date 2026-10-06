@@ -418,6 +418,15 @@ looks a tab up by name when that tab is edited, so a deleted tab can never trigg
 deleting the tabs is safe without touching the script. The three lines can be removed
 for tidiness at any time. The script does not reference `Reports`.
 
+**Also confirmed by JY 2026-10-06.**
+- "Project name" everywhere means `Projects.display_address` (column B);
+  `project_name` is deprecated and never read.
+- The editor caps unit prices at 2 decimal places, matching Xero's default rounding, so
+  the app's amounts and Xero's always agree.
+- Xero contact linking (the `xero_contact_id` column and the pairing script) is done in
+  **Phase 2**, the first phase that reads from Xero, so the column is filled well before
+  Phase 5 needs it.
+
 **System config row positions do not matter.** Every key (tokens included) is found by
 name in column A, never by row number, so rows can be inserted or moved freely.
 
