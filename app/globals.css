@@ -64,6 +64,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
+/* Quote editor buttons that cannot act (move the first row up, delete the last row) */
+.qe-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* Visible focus for keyboard users without ringing every tap on touch */
 :focus-visible {
   outline: 2px solid #0f766e;
@@ -76,6 +82,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .row-label:hover .row-label-text {
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .qe-btn:not(:disabled):hover {
+    border-color: #9ca3af;
+    background: #eef2f4;
   }
 
   .ghost-button:hover {

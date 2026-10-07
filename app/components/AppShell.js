@@ -9,7 +9,10 @@ import { getUser, clearUser, daysRemaining } from '@/lib/session';
 import { useOnline } from '@/lib/useOnline';
 import { card, color, font, radius, shadow, space } from '@/lib/theme';
 
-export default function AppShell({ title, subtitle, onBack, actions, children }) {
+// `wide` is for the quote editor only: its line table is a desktop grid that cannot
+// fit the 720px column every other screen uses. On a phone the table scrolls inside
+// its own container, so the page itself still never scrolls sideways.
+export default function AppShell({ title, subtitle, onBack, actions, wide = false, children }) {
   const [user, setUser]       = useState(null);
   const [ready, setReady]     = useState(false);
   const [menuOpen, setMenu]   = useState(false);
@@ -160,7 +163,7 @@ export default function AppShell({ title, subtitle, onBack, actions, children })
       <main style={{
         padding: `${space.lg}px`,
         paddingBottom: `calc(${space.xxl}px + env(safe-area-inset-bottom))`,
-        maxWidth: 720,
+        maxWidth: wide ? 1360 : 720,
         margin: '0 auto',
       }}>
         {children}

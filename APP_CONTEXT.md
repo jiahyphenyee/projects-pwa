@@ -10,7 +10,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 |---|---|
 | `app/` | Next.js App Router pages. One folder per screen. |
 | `app/api/` | Route handlers — the only place that touches Google Sheets. |
-| `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen. |
+| `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `wide` prop is for the quote screen only. |
+| `app/components/quote/` | The quote screen's parts: `LineEditor` (the line table), `TotalsPanel`. |
+| `lib/quoteEditor.mjs` | The editor's row operations (insert, move, duplicate, delete, save payload) as pure, tested functions. |
 | `lib/google.js` | Service-account auth and a memoised Sheets client. |
 | `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `writeAfterLast`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
 | `lib/constants.js` | Shared constants. Never tab names — those come from `getTab()`. |
@@ -61,13 +63,19 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 **Quotes (data layer; the screen arrives in Phase 3)**
 
 - **Every quote figure goes through `lib/quoteMaths.mjs`.** Integer-cent arithmetic, 2 dp, no GST. The editor, the saved totals, the PDF and the Xero invoice must never compute a figure their own way, or they will disagree by a cent.
-- **Saving a quote never edits its live lines.** New lines are appended as the next `version` in one request; flipping `Quotes.current_version` is the commit point; pruning comes last and may fail harmlessly. Sheets has no transactions, and a half-applied delete-and-rewrite would be a quote with half its rows.
+- **Saving a quote never edits its live lines.** New lines are appended as the next `version` in one request; flipping `Quotes.current_version` is the commit point; pruning runs after the response (`after()`) and may fail harmlessly. Sheets has no transactions, and a half-applied delete-and-rewrite would be a quote with half its rows.
+- **A prune deletes only versions strictly below current; a save writes above every version on the tab.** Both rules live in `lib/quoteVersions.mjs` with tests. A prune that deleted "everything but current" once raced a save mid-commit and deleted its new lines (2026-10-07, test data only). Never loosen either rule.
+- **A save is one parallel wave of reads, two ordered commit writes, one parallel wave of follow-up writes.** Don't add a read-back or a sequential read to it: each Sheets call is ~400ms and can stall for seconds.
 - **Line IDs are never reused.** `next_line_no` only goes up, so `Price history` (keyed on `line_id`) can never attach a new line to an old item's price.
 - **A billed stage is locked.** Its name, share and amount are read from the sheet, never from the request, and it cannot be removed while it carries a `xero_invoice_id`.
 - **Stage amounts are computed on read, never stored, except for billed ones.** The final payment is contract sum minus every other stage, so the schedule always sums to the contract sum to the cent.
 - **Property type lives on `Projects` column M**, set once per project; a quote copies it at save time. `Projects` is now A:M. Column C stays protected and unwritten.
 - **The quote tabs use `appendRows()` and `deleteRowsByNumbers()`** — this app owns them outright and they have no checkbox columns. Those helpers are never used on shared tabs.
 - **`Categories.E xero_tracking_option` is the one Xero mapping.** Do not add a code→option map in this repo.
+- **The quote editor is exempt from the `LineRow` rule.** It is a grid of inputs, not a list of read-only rows; `LineRow` remains the rule for every list on the other screens.
+- **Only the quote screen is wide.** `AppShell wide` raises the column to 1360px; the line table scrolls inside its own container on a phone. Every other screen stays at 720px.
+- **Row rules live in `lib/quoteEditor.mjs`, not the component.** A new row copies the nearest item's service; a title moves alone; deleting a title keeps its lines; the last row cannot be deleted; prices take at most 2 decimals; fully blank rows are dropped on save.
+- **The quote screen loads with one parallel wave of reads** (`loadQuoteScreen`). Each Sheets call is ~400ms on a good day and several seconds on a bad one, so never chain reads that could run together.
 
 **Business rules**
 
