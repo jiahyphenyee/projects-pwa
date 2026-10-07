@@ -22,7 +22,7 @@ version and date and open a fresh one above.
 - `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
 - Price memory in the quote editor: past items suggested as you type (3+ characters, every word must match, up to 4), filling the last price for the project's property type only; a price check line under any row that matches a past item exactly.
 - Quote saves take about four round trips instead of fifteen; old line versions are tidied after the response.
-- Quote screen at `/projects/<code>/quote`, opened from a project (admins only): insert-anywhere lines, section titles with subtotals, optional units and discount, totals with "No GST", property type per project, save to Sheets and price history. Unit prices show two decimals once entered.
+- Quote screen at `/projects/<code>/quote`, opened from a project (admins only): insert-anywhere lines, section titles with subtotals, optional units and discount, totals with "No GST", property type per project, save to Sheets and price history. Unit prices show two decimals once entered. Descriptions are a box that grows with the text; Shift + Enter adds a line break.
 - `scripts/link-xero-contacts.mjs` proposes Xero contact pairings and writes confirmed ones to the new `Contacts.xero_contact_id` column (H).
 - `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
 

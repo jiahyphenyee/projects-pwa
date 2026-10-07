@@ -4,7 +4,7 @@
 // container so the page never does. All row rules live in lib/quoteEditor.mjs; this file
 // only renders rows and turns clicks into those operations.
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   insertItem, insertTitle, duplicateRow, moveRow, removeRow, updateRow, lineNumbers, acceptDecimal, formatPrice,
 } from '@/lib/quoteEditor.mjs';
@@ -111,7 +111,7 @@ export default function LineEditor({
           const ref = el => { if (el) inputs.current.set(row.key, el); else inputs.current.delete(row.key); };
           const set = change => onChange(updateRow(rows, row.key, change));
           const onKeyDown = e => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               apply(insertItem(rows, i + 1, defaultService));
             }
@@ -148,7 +148,8 @@ export default function LineEditor({
           return (
             <Fragment key={row.key}>
             <div onFocus={onFocus} style={{
-              display: 'grid', gridTemplateColumns: template, gap: space.sm, alignItems: 'center',
+              display: 'grid', gridTemplateColumns: template, gap: space.sm,
+              alignItems: isTitle ? 'center' : 'start',
               padding: `${space.sm}px ${space.md}px`, borderTop: `1px solid ${color.border}`,
               background: isTitle ? '#F3F5F6' : focused === row.key ? '#FBFCFC' : color.surface,
             }}>
@@ -172,13 +173,11 @@ export default function LineEditor({
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: font.size.sm, fontWeight: 600, color: color.muted }}>{numbers.get(row.key)}</div>
-                  <input
-                    ref={ref} value={row.description} disabled={disabled}
-                    aria-label={`Description, line ${numbers.get(row.key)}`}
-                    placeholder="Description"
-                    onChange={e => set({ description: e.target.value })} onKeyDown={onKeyDown}
-                    style={field}
+                  <div style={{ fontSize: font.size.sm, fontWeight: 600, color: color.muted, lineHeight: '38px' }}>{numbers.get(row.key)}</div>
+                  <DescriptionBox
+                    inputRef={ref} value={row.description} disabled={disabled}
+                    label={`Description, line ${numbers.get(row.key)}`}
+                    onChange={description => set({ description })} onKeyDown={onKeyDown}
                   />
                   <select
                     value={row.service} disabled={disabled} aria-label="Service"
@@ -214,7 +213,7 @@ export default function LineEditor({
                     onBlur={() => { const f = formatPrice(row.unitPrice); if (f !== row.unitPrice) set({ unitPrice: f }); }}
                     style={{ ...field, textAlign: 'right' }}
                   />
-                  <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600 }}>
+                  <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600, lineHeight: '38px' }}>
                     {formatAmount(lineAmount(qtyOf(row), priceOf(row)))}
                   </div>
                   <div style={{ display: 'flex', gap: space.xs }}>
@@ -257,7 +256,7 @@ export default function LineEditor({
             style={{ ...textButton, height: 40, padding: '0 14px', borderStyle: 'dashed', borderColor: color.subtle, background: '#F3F5F6' }}
             onClick={() => apply(insertTitle(rows, rows.length))}>+ Add title at the end</button>
           <span style={{ fontSize: font.size.xs, color: color.muted }}>
-            Press Enter in a description to add a line directly below it.
+            Enter adds a line directly below. Shift + Enter starts a new line inside a description.
           </span>
         </div>
       </div>
@@ -354,5 +353,40 @@ function SuggestionPanel({ hits, propertyType, serviceName, onPick, onDismiss })
         }}
       >None of these. Keep what I typed.</button>
     </div>
+  );
+}
+
+/**
+ * The description box: a textarea that grows with its text, so a long item reads in full
+ * instead of scrolling inside a one-line field. Starts one line tall like the other cells.
+ */
+function DescriptionBox({ inputRef, value, label, disabled, onChange, onKeyDown }) {
+  const el = useRef(null);
+  const fit = () => {
+    const t = el.current;
+    if (!t) return;
+    t.style.height = 'auto';
+    t.style.height = `${Math.max(t.scrollHeight + 2, 38)}px`;   // +2 for the borders
+  };
+  useLayoutEffect(fit, [value]);
+  // The column narrows when Show unit is ticked or the window shrinks; re-fit then too
+  useEffect(() => {
+    const t = el.current;
+    if (!t || typeof ResizeObserver === 'undefined') return;
+    let width = t.clientWidth;
+    const obs = new ResizeObserver(() => { if (t.clientWidth !== width) { width = t.clientWidth; fit(); } });
+    obs.observe(t);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <textarea
+      ref={node => { el.current = node; inputRef(node); }}
+      value={value} rows={1} disabled={disabled} aria-label={label} placeholder="Description"
+      onChange={e => onChange(e.target.value)} onKeyDown={onKeyDown}
+      style={{
+        ...field, height: 38, padding: '9px 10px', lineHeight: 1.35, resize: 'none',
+        overflow: 'hidden', display: 'block',
+      }}
+    />
   );
 }
