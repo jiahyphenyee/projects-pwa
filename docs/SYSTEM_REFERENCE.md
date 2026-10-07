@@ -441,6 +441,9 @@ nothing.
 `scripts/sample-quote.mjs` on 2026-10-06. Not a real job. Its client is `CON-009`
 "TEST – Heng Fa internal" (added 2026-10-07), linked to a Xero contact of the same name
 created for testing. Bill only test stages to it, and void them in Xero afterwards.
+First live test 2026-10-07: `INV-261007-01`, $495.33, billed from `ST-0001` by JY,
+checked in Xero and voided; the stage row was then reset to unbilled. Xero keeps the
+voided number, so the next invoice that day is `-02`.
 
 ---
 
