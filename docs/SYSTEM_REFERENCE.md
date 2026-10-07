@@ -438,7 +438,9 @@ negative). Most are quantity-1 lump sums with the size in the description, so th
 nothing.
 
 **Test data:** `PRJ-208` "TEST - quote and billing" holds `Q-0001`, written by
-`scripts/sample-quote.mjs` on 2026-10-06. Not a real job.
+`scripts/sample-quote.mjs` on 2026-10-06. Not a real job. Its client is `CON-009`
+"TEST – Heng Fa internal" (added 2026-10-07), linked to a Xero contact of the same name
+created for testing. Bill only test stages to it, and void them in Xero afterwards.
 
 ---
 
