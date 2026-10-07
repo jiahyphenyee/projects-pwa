@@ -25,7 +25,19 @@ beginning `"-----BEGIN…`, which fails to parse and returns a 500 saying nothin
 2026-08-10 `lib/google.js` strips stray quotes anyway and throws a named error if the PEM
 is malformed, so a mistake here now says what is wrong instead of crashing opaquely.
 
-Nothing else is needed. There are **no Xero variables** — this app makes no Xero calls.
+**Quote and billing also needs four Xero variables** (added 2026-10-07). They are this
+app's own Xero app registration, not the expense app's:
+
+| Key | Notes |
+|---|---|
+| `XERO_CLIENT_ID` | From developer.xero.com, the Projects PWA app |
+| `XERO_CLIENT_SECRET` | Same app |
+| `XERO_TENANT_ID` | Heng Fa's organisation id; the same value the expense app uses |
+| `XERO_DRY_RUN` | `true` until William is ready. **Only the exact value `false` sends anything to Xero**; unset or any other value is a dry run |
+
+The Xero tokens are not env vars: they live in System config (`XERO_PROJECTS_*`) and the
+app refreshes them itself. If they ever stop working, re-run `node scripts/xero-auth.mjs`
+locally (see the script's header).
 
 ## Google access
 

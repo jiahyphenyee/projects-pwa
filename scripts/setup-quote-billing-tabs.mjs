@@ -100,6 +100,11 @@ async function createQuoteTabs(props) {
   for (const spec of QUOTE_TAB_SPECS) {
     if (props.has(spec.title)) {
       const header = (await values(`${q(spec.title)}!1:1`))[0] || [];
+      // Columns added to a spec after the tab was made are appended, never inserted
+      for (let i = header.length; i < spec.headers.length; i++) {
+        await appendHeader(await tabProps(), spec.title, spec.headers[i]);
+        header.push(spec.headers[i]);
+      }
       const drift = spec.headers.filter((h, i) => String(header[i] ?? '').trim().toLowerCase() !== h);
       log(`tab "${spec.title}" exists` + (drift.length ? ` — HEADER DRIFT on: ${drift.join(', ')}` : ', headers match'));
       continue;

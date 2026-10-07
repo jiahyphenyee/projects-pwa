@@ -435,9 +435,23 @@ Billed state is on the VO's `Quotes` row; `Quotes.status` goes draft → sending
 `xero_invoice_id`, `xero_invoice_number`, `billed_*` on the `Quotes` row and setting
 `status` back to `draft`.
 
+**Quote PDF (Phase 7).** `GET /api/quotes/pdf?quote=<id>` makes the PDF from the saved
+quote or VO: logo (`assets/quote-logo.png`), `COMPANY_NAME`, `COMPANY_UEN`,
+`COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_EMAIL`, client, project, property type, lines
+(titles as headings, no section subtotals), totals with "No GST", the payment schedule, and
+`QUOTE_TERMS`. Blank or `[placeholder]` values are left off. After the first stage of a
+quote is billed, the PDF is attached to that invoice and `Payment stages.pdf_attached_at`
+(column O) is stamped; it is never attached twice. `POST /api/quotes/pdf` retries a failed
+attachment, with the PIN.
+
+**Routes added by quote and billing:** `/projects/<code>/quote`, `/projects/<code>/quote/vo/<id>`;
+`GET/POST /api/quotes` (screen, list, summary, save), `GET/POST /api/quotes/bill` (preview,
+bill a stage or a VO), `GET/POST /api/quotes/pdf` (download, attach).
+
 **Voiding and re-billing a stage by hand:** void the invoice in Xero, then in `Payment stages`
 clear that row's `billed_amount`, `billed_at`, `billed_by`, `xero_invoice_id`,
-`xero_invoice_number` and `xero_sync_status`. The stage is then unbilled and can be billed
+`xero_invoice_number`, `xero_sync_status`, `quote_version` and, if it carried the quote PDF,
+`pdf_attached_at` (so the PDF goes onto the re-billed invoice). The stage is then unbilled and can be billed
 again under a new number.
 
 **Imported history:** on 2026-10-06 `scripts/import-price-history.mjs` loaded 1,019 rows

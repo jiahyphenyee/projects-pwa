@@ -41,6 +41,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/quoteSchema.mjs` | Column maps and headers of the four quote tabs, shared by the server modules and the setup script. |
 | `lib/xeroClient.mjs` | Dependency-free Xero API client: token refresh against a pluggable store, 401/429 handling, paging. Used by the app and the scripts. |
 | `lib/xero.js` | The app's Xero connection: token store on `XERO_PROJECTS_*` in System config, `isDryRun()`. |
+| `assets/` | Files the server reads at runtime, bundled by `outputFileTracingIncludes`. `quote-logo.png` for the quote PDF. |
+| `lib/quotePdf.mjs`, `lib/quoteDocument.js` | The quote PDF: pdf-lib renderer (pure) and the model built from the saved quote and System config. |
 | `tests/` | `node --test` unit tests (`npm test`). No runner dependency. |
 | `scripts/` | One-off Node scripts run by hand, never by the app; `_shared.mjs` gives them Sheets and Xero access without the `@/` alias. `xero-auth.mjs` authorises this app's own Xero connection; `setup-quote-billing-tabs.mjs` creates the quote tabs (idempotent); `sample-quote.mjs` is the Phase 1 round-trip check against a running dev server; `import-price-history.mjs` and `link-xero-contacts.mjs` are the Phase 2 imports, both read-only against Xero. |
 
@@ -85,8 +87,10 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 
 **Business rules**
 
-- **Every Xero write goes through `createInvoice()` in `lib/xero.js`**, which honours `isDryRun()` — true unless `XERO_DRY_RUN` is exactly `false`. In dry run nothing is written anywhere: the stage stays unbilled and the screen shows the payload. The `Expenses` tab stays read-only; receipted expenses reach Xero through `expense-pwa`.
+- **Every Xero write goes through `xeroWrite()` in `lib/xero.js`** (via `createInvoice()` or `attachToInvoice()`), which honours `isDryRun()` — true unless `XERO_DRY_RUN` is exactly `false`. In dry run nothing is written anywhere: the stage stays unbilled and the screen shows the payload. The `Expenses` tab stays read-only; receipted expenses reach Xero through `expense-pwa`.
 - **Billing a stage is idempotent and must stay so.** A stage with `xero_invoice_id` is never sent again. The number is stored with status `sending` before the Xero call; any retry looks that number up in Xero and adopts a matching invoice instead of creating another. The call carries an `Idempotency-Key`. A duplicate-number rejection takes the next number and retries once. Do not remove any of these.
+- **The quote PDF goes onto the first stage invoice once.** `Payment stages.pdf_attached_at` records it; if any stage of the quote has it, nothing is sent. A failed attachment never fails billing. The PDF is drawn from the *saved* quote, with no section subtotals (William).
+- **PDF text goes through `printable()`**: the standard PDF fonts cover Windows-1252 only, so anything else becomes "?" instead of failing the document.
 - **A variation order is a `Quotes` row with `kind = vo`, edited by the same `QuoteScreen` — never a copy of it.** Its billed state lives on that row (`xero_invoice_*`, `billed_*`), and `Quotes.status` carries `sending` / `error` / `billed` as a stage's `xero_sync_status` does. Billed VOs are locked; VOs never change stage amounts.
 - **No save while a billing attempt is unfinished** (`sending`): the retry must match the invoice by amount, and an edit would stop it matching.
 - **`lineAmount` is exact decimal arithmetic** (BigInt). Floating point turns 91.5 × 6.55 = 599.325 into 599.32; Xero says 599.33.
