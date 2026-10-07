@@ -9,10 +9,11 @@ import Tag from '@/app/components/Tag';
 import LineRow from '@/app/components/LineRow';
 import FilterChip, { FilterGroup } from '@/app/components/FilterChip';
 import LockCodeInput from '@/app/components/LockCodeInput';
+import QuoteBillingCard from '@/app/components/quote/QuoteBillingCard';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
-import { GENERAL_PROJECT_CODE } from '@/lib/constants';
+import { GENERAL_PROJECT_CODE, ADMIN_ROLES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
 import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
 import { summariseProject, mergeLines } from '@/lib/rollups';
@@ -119,7 +120,12 @@ export default function ProjectDetailPage({ params }) {
     setSelected([]);
   }
 
-  useEffect(() => { setUserName(getUser()?.name || ''); }, []);
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    const u = getUser();
+    setUserName(u?.name || '');
+    setIsAdmin(!!u && ADMIN_ROLES.includes(u.role));
+  }, []);
 
   useEffect(() => {
     if (userName && project) recordRecent(userName, project.code);
@@ -303,6 +309,13 @@ export default function ProjectDetailPage({ params }) {
                 ? ' Changes cannot be saved until you reconnect.'
                 : ' The figures above may have moved on.'}
             </div>
+          )}
+
+          {!isGeneral && isAdmin && (
+            <QuoteBillingCard
+              projectCode={project.code}
+              onOpen={() => router.push(`/projects/${encodeURIComponent(project.code)}/quote`)}
+            />
           )}
 
           {!isGeneral && (

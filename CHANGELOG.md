@@ -5,7 +5,10 @@ Every user-visible change to the Projects PWA, newest first.
 **One line per entry.** Say what changed, plus the why only when it is not obvious.
 Mechanism, reasoning and code belong in the commit; workbook and Xero facts belong in
 `docs/SYSTEM_REFERENCE.md`. Add bullets under **Unreleased** in the matching
-`[Added]` / `[Changed]` / `[Fixed]` / `[Removed]` block; on release, retitle it with the
+`[Added]` / `[Changed]` / `[Fixed]` / `[Fixed]
+- Line amounts are exact: 91.5 × $6.55 is $599.33, as Xero rounds it, not the $599.32 floating point gave.
+
+[Removed]` block; on release, retitle it with the
 version and date and open a fresh one above.
 
 ## Unreleased
@@ -15,6 +18,23 @@ version and date and open a fresh one above.
 - Filter a project's costs by category (several at once) and by invoiced state, with the number of rows and their total shown against the selection.
 - Optional lock code on a project, set when creating it and editable from the project screen.
 - The project screen now says when a project is on hold or closed.
+- `scripts/xero-auth.mjs` authorises this app's own Xero connection, kept separate from the expense app's so neither can invalidate the other's tokens.
+- Quote data layer: `Quotes`, `Quote lines`, `Payment stages` and `Price history` tabs, `lib/quotes.js` save/load with versioned saves, `lib/quoteMaths.mjs` for every money figure, and `/api/quotes`. No screen yet.
+- `npm test` runs the calculation tests with Node's built-in runner.
+- Xero client (`lib/xeroClient.mjs`, `lib/xero.js`) on this app's own tokens, read-only until Phase 5.
+- `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
+- Quote PDF (logo, company details and T&Cs from System config, lines, totals, "No GST", payment schedule) with a Download button, attached once to the first stage invoice in Xero.
+- Variation orders: "+ Variation order" opens the same editor blank (numbered VO1, VO2… on first save); Bill now sends one approved invoice with every line, titles as text lines, units in the description, each line's Service, and the discount as a negative line, after checking the lines add up.
+- The project screen lists every payment stage and variation order with its amount and billed state.
+- Payment schedule on the quote screen (stages as shares, final payment as the balance, add and remove, over-100% warning) and **Bill now**: a confirm step with invoice number, Xero client, amount and line, PIN re-entry, then one approved invoice in Xero. Dry run by default.
+- Price memory in the quote editor: past items suggested as you type (3+ characters, every word must match, up to 4), filling the last price for the project's property type only; a price check line under any row that matches a past item exactly.
+- Quote saves take about four round trips instead of fifteen; old line versions are tidied after the response.
+- Quote screen at `/projects/<code>/quote`, opened from a project (admins only): insert-anywhere lines, section titles with subtotals, optional units and discount, totals with "No GST", property type per project, save to Sheets and price history. Unit prices show two decimals once entered. Descriptions are a box that grows with the text; Shift + Enter adds a line break.
+- `scripts/link-xero-contacts.mjs` proposes Xero contact pairings and writes confirmed ones to the new `Contacts.xero_contact_id` column (H).
+- `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
+
+[Removed]
+- The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
 
 [Changed]
 - A project shows one cost list — receipted expenses sit alongside the rest, newest first, rather than in a separate collapsed section. They still cannot be edited here.

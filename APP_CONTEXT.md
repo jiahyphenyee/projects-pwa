@@ -10,7 +10,14 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 |---|---|
 | `app/` | Next.js App Router pages. One folder per screen. |
 | `app/api/` | Route handlers — the only place that touches Google Sheets. |
-| `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen. |
+| `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `wide` prop is for the quote screen only. |
+| `app/components/quote/` | The quote screen's parts. `QuoteScreen` is the whole screen, shared by the quote (`/projects/<code>/quote`) and variation orders (`…/quote/vo/<id>`, or `vo/new`); `LineEditor`, `TotalsPanel`, `PaymentSchedule`, `VariationOrders`, `BillConfirm`, and `QuoteBillingCard` for the project screen. |
+| `lib/priceMemory.mjs` | Price suggestions and the price check, pure and tested. Runs in the browser on history loaded once with the screen. |
+| `lib/billing.js` | Billing one payment stage: preview with blockers, then PIN-checked, idempotent creation of one approved Xero invoice. |
+| `lib/voInvoice.mjs` | The exact Xero invoice for a variation order, with the lines-equal-contract-sum check. Pure, tested. |
+| `lib/invoiceNumbers.mjs`, `lib/stageInvoice.mjs` | Invoice numbering (INV-YYMMDD-XX) and the exact stage invoice payload. Pure, tested. |
+| `lib/pin.js` | Server-side PIN check against `PWA_USER_*`, for billing. |
+| `lib/quoteEditor.mjs` | The editor's row operations (insert, move, duplicate, delete, save payload) as pure, tested functions. |
 | `lib/google.js` | Service-account auth and a memoised Sheets client. |
 | `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `writeAfterLast`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
 | `lib/constants.js` | Shared constants. Never tab names — those come from `getTab()`. |
@@ -28,6 +35,16 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `public/sw.js` | Hand-written service worker. Bump `CACHE_VERSION` on any change to it. |
 | `lib/localCache.js` | localStorage fallback so viewed projects open offline. |
 | `lib/useOnline.js` | Online/offline state for the header banner. |
+| `lib/quotes.js` | Quotes, VOs and payment stages: versioned save, load, list. Owns `Quotes`, `Quote lines`, `Payment stages`. |
+| `lib/priceHistory.js` | The `Price history` tab: upsert per saved line, read for suggestions. |
+| `lib/quoteMaths.mjs` | Every money calculation for quotes. Pure; `.mjs` so `node --test` runs it. |
+| `lib/quoteSchema.mjs` | Column maps and headers of the four quote tabs, shared by the server modules and the setup script. |
+| `lib/xeroClient.mjs` | Dependency-free Xero API client: token refresh against a pluggable store, 401/429 handling, paging. Used by the app and the scripts. |
+| `lib/xero.js` | The app's Xero connection: token store on `XERO_PROJECTS_*` in System config, `isDryRun()`. |
+| `assets/` | Files the server reads at runtime, bundled by `outputFileTracingIncludes`. `quote-logo.png` for the quote PDF. |
+| `lib/quotePdf.mjs`, `lib/quoteDocument.js` | The quote PDF: pdf-lib renderer (pure) and the model built from the saved quote and System config. |
+| `tests/` | `node --test` unit tests (`npm test`). No runner dependency. |
+| `scripts/` | One-off Node scripts run by hand, never by the app; `_shared.mjs` gives them Sheets and Xero access without the `@/` alias. `xero-auth.mjs` authorises this app's own Xero connection; `setup-quote-billing-tabs.mjs` creates the quote tabs (idempotent); `sample-quote.mjs` is the Phase 1 round-trip check against a running dev server; `import-price-history.mjs` and `link-xero-contacts.mjs` are the Phase 2 imports, both read-only against Xero. |
 
 ## Rules to maintain
 
@@ -50,9 +67,37 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Editing a cost rewrites `E:I` only.** `project_code`, `project_name`, the invoiced state (`J:K`), `invoice_ref` and `created_by` are deliberately untouched, so correcting an amount can never silently un-bill a line or reassign authorship.
 - **Deleted cost IDs are reused.** `nextId()` is max+1 over surviving rows, so deleting the newest cost frees its ID for the next insert. Fine within the sheet; be careful if a cost ID is ever quoted outside it.
 
+**Quotes (data layer; the screen arrives in Phase 3)**
+
+- **Every quote figure goes through `lib/quoteMaths.mjs`.** Integer-cent arithmetic, 2 dp, no GST. The editor, the saved totals, the PDF and the Xero invoice must never compute a figure their own way, or they will disagree by a cent.
+- **Saving a quote never edits its live lines.** New lines are appended as the next `version` in one request; flipping `Quotes.current_version` is the commit point; pruning runs after the response (`after()`) and may fail harmlessly. Sheets has no transactions, and a half-applied delete-and-rewrite would be a quote with half its rows.
+- **A prune deletes only versions strictly below current; a save writes above every version on the tab.** Both rules live in `lib/quoteVersions.mjs` with tests. A prune that deleted "everything but current" once raced a save mid-commit and deleted its new lines (2026-10-07, test data only). Never loosen either rule.
+- **A save is one parallel wave of reads, two ordered commit writes, one parallel wave of follow-up writes.** Don't add a read-back or a sequential read to it: each Sheets call is ~400ms and can stall for seconds.
+- **Line IDs are never reused.** `next_line_no` only goes up, so `Price history` (keyed on `line_id`) can never attach a new line to an old item's price.
+- **A billed stage is locked.** Its name, share and amount are read from the sheet, never from the request, and it cannot be removed while it carries a `xero_invoice_id`.
+- **Stage amounts are computed on read, never stored, except for billed ones.** The final payment is contract sum minus every other stage, so the schedule always sums to the contract sum to the cent.
+- **Property type lives on `Projects` column M**, set once per project; a quote copies it at save time. `Projects` is now A:M. Column C stays protected and unwritten.
+- **The quote tabs use `appendRows()` and `deleteRowsByNumbers()`** — this app owns them outright and they have no checkbox columns. Those helpers are never used on shared tabs.
+- **`Categories.E xero_tracking_option` is the one Xero mapping.** Do not add a code→option map in this repo.
+- **A price is only ever filled from a past quote of the same property type, and only into a blank price.** Imported rows (blank `property_type`) are reference only. A quote never suggests or price-checks against its own saved lines. All in `lib/priceMemory.mjs`; keep it there.
+- **The quote editor is exempt from the `LineRow` rule.** It is a grid of inputs, not a list of read-only rows; `LineRow` remains the rule for every list on the other screens.
+- **Only the quote screen is wide.** `AppShell wide` raises the column to 1360px; the line table scrolls inside its own container on a phone. Every other screen stays at 720px.
+- **Row rules live in `lib/quoteEditor.mjs`, not the component.** A new row copies the nearest item's service; a title moves alone; deleting a title keeps its lines; the last row cannot be deleted; prices take at most 2 decimals; fully blank rows are dropped on save.
+- **The quote screen loads with one parallel wave of reads** (`loadQuoteScreen`). Each Sheets call is ~400ms on a good day and several seconds on a bad one, so never chain reads that could run together.
+
 **Business rules**
 
-- **This app makes no Xero API calls.** The `Expenses` tab is read-only to it. Receipted expenses reach Xero through the sibling `expense-pwa`.
+- **Every Xero write goes through `xeroWrite()` in `lib/xero.js`** (via `createInvoice()` or `attachToInvoice()`), which honours `isDryRun()` — true unless `XERO_DRY_RUN` is exactly `false`. In dry run nothing is written anywhere: the stage stays unbilled and the screen shows the payload. The `Expenses` tab stays read-only; receipted expenses reach Xero through `expense-pwa`.
+- **Billing a stage is idempotent and must stay so.** A stage with `xero_invoice_id` is never sent again. The number is stored with status `sending` before the Xero call; any retry looks that number up in Xero and adopts a matching invoice instead of creating another. The call carries an `Idempotency-Key`. A duplicate-number rejection takes the next number and retries once. Do not remove any of these.
+- **The quote PDF goes onto the first stage invoice once.** `Payment stages.pdf_attached_at` records it; if any stage of the quote has it, nothing is sent. A failed attachment never fails billing. The PDF is drawn from the *saved* quote, with no section subtotals (William).
+- **PDF text goes through `printable()`**: the standard PDF fonts cover Windows-1252 only, so anything else becomes "?" instead of failing the document.
+- **A variation order is a `Quotes` row with `kind = vo`, edited by the same `QuoteScreen` — never a copy of it.** Its billed state lives on that row (`xero_invoice_*`, `billed_*`), and `Quotes.status` carries `sending` / `error` / `billed` as a stage's `xero_sync_status` does. Billed VOs are locked; VOs never change stage amounts.
+- **No save while a billing attempt is unfinished** (`sending`): the retry must match the invoice by amount, and an edit would stop it matching.
+- **`lineAmount` is exact decimal arithmetic** (BigInt). Floating point turns 91.5 × 6.55 = 599.325 into 599.32; Xero says 599.33.
+- **Billing re-checks everything on the server**: the PIN (`lib/pin.js`), shares ≤ 100%, a client with a Xero ContactID that Xero still has, and that the amount and quote version match what was confirmed. The screen's checks are convenience only.
+- **Invoices are sent against `ContactID` only, as `AUTHORISED`, `NoTax`, with `Reference` = `display_address`, due date + `INVOICE_DUE_DAYS`, account `XERO_SALES_ACCOUNT_CODE`.**
+- **Never create a Xero contact.** Invoices go against `Contacts.xero_contact_id` (column H) only. The token's contacts scope is read-only, so an attempt fails in Xero as well as in review.
+- **This app has its own Xero app registration and its own tokens**, stored in `System config` as `XERO_PROJECTS_ACCESS_TOKEN` / `_REFRESH_TOKEN` / `_TOKEN_EXPIRY`. Never read or refresh the expense app's `XERO_ACCESS_TOKEN` / `XERO_REFRESH_TOKEN`: Xero refresh tokens are single-use, so two apps sharing one set take turns locking each other out.
 - **Whether a receipted expense has been invoiced is tracked in its own tab**, `Receipted expense invoicing` (`TAB_RECEIPTED_INVOICING`), keyed by `expense_id` and joined on read. That state is a fact about *our* billing, not about the expense claim, so it must not be written into `Expenses` — which stays read-only, and whose every column belongs to `expense-pwa` or its Xero sync. Rows are created lazily on the first tick: **absent means not invoiced**. Non-receipted costs are unaffected; they keep their own state in `Project costs` J:L. Both are normalised to one `{ invoiced, invoicedDate }` shape by `app/api/costs`, so no screen branches on which tab it came from.
 - **Never format `invoiced` in that tab as a checkbox.** Plain `TRUE`/`FALSE` text only. A checkbox column defeats the API's table detection for the whole tab — the same failure that forced `Project costs` onto `writeAfterLast()`.
 - **A missing `Receipted expense invoicing` tab degrades to "nothing is invoiced" on read, and fails loudly on write.** A workbook that has not been set up still shows its costs; a tick that cannot be saved must never look like it was.
