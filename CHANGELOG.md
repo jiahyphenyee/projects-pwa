@@ -20,6 +20,7 @@ version and date and open a fresh one above.
 - `npm test` runs the calculation tests with Node's built-in runner.
 - Xero client (`lib/xeroClient.mjs`, `lib/xero.js`) on this app's own tokens, read-only until Phase 5.
 - `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
+- Quote screen at `/projects/<code>/quote`, opened from a project (admins only): insert-anywhere lines, section titles with subtotals, optional units and discount, totals with "No GST", property type per project, save to Sheets and price history.
 - `scripts/link-xero-contacts.mjs` proposes Xero contact pairings and writes confirmed ones to the new `Contacts.xero_contact_id` column (H).
 - `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
 

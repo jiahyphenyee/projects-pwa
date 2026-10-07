@@ -12,7 +12,7 @@ import LockCodeInput from '@/app/components/LockCodeInput';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
-import { GENERAL_PROJECT_CODE } from '@/lib/constants';
+import { GENERAL_PROJECT_CODE, ADMIN_ROLES } from '@/lib/constants';
 import { formatIsoDate } from '@/lib/dates';
 import { readCache, writeCache, costsCacheKey, describeAge } from '@/lib/localCache';
 import { summariseProject, mergeLines } from '@/lib/rollups';
@@ -119,7 +119,12 @@ export default function ProjectDetailPage({ params }) {
     setSelected([]);
   }
 
-  useEffect(() => { setUserName(getUser()?.name || ''); }, []);
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    const u = getUser();
+    setUserName(u?.name || '');
+    setIsAdmin(!!u && ADMIN_ROLES.includes(u.role));
+  }, []);
 
   useEffect(() => {
     if (userName && project) recordRecent(userName, project.code);
@@ -303,6 +308,27 @@ export default function ProjectDetailPage({ params }) {
                 ? ' Changes cannot be saved until you reconnect.'
                 : ' The figures above may have moved on.'}
             </div>
+          )}
+
+          {!isGeneral && isAdmin && (
+            <button
+              type="button"
+              className="row-label"
+              onClick={() => router.push(`/projects/${encodeURIComponent(project.code)}/quote`)}
+              style={{
+                ...card, width: '100%', padding: `${space.md}px ${space.lg}px`, marginBottom: space.lg,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.md,
+                cursor: 'pointer', fontFamily: font.stack, textAlign: 'left', color: color.text,
+              }}
+            >
+              <span>
+                <span className="row-label-text" style={{ display: 'block', fontSize: font.size.md, fontWeight: 600 }}>Quote and billing</span>
+                <span style={{ display: 'block', fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
+                  Write the quote, set the payment schedule, bill stages to Xero
+                </span>
+              </span>
+              <span aria-hidden="true" style={{ fontSize: font.size.lg, color: color.muted }}>→</span>
+            </button>
           )}
 
           {!isGeneral && (
