@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from 'react';
 import {
-  insertItem, insertTitle, duplicateRow, moveRow, removeRow, updateRow, lineNumbers, acceptDecimal,
+  insertItem, insertTitle, duplicateRow, moveRow, removeRow, updateRow, lineNumbers, acceptDecimal, formatPrice,
 } from '@/lib/quoteEditor.mjs';
 import { lineAmount, sectionSubtotals } from '@/lib/quoteMaths.mjs';
 import { formatAmount } from '@/app/components/TotalsCard';
@@ -199,6 +199,7 @@ export default function LineEditor({ rows, onChange, showUnit, categories, units
                     value={row.unitPrice} disabled={disabled} inputMode="decimal" aria-label="Unit price"
                     placeholder="0.00"
                     onChange={e => set({ unitPrice: acceptDecimal(e.target.value, row.unitPrice) })}
+                    onBlur={() => { const f = formatPrice(row.unitPrice); if (f !== row.unitPrice) set({ unitPrice: f }); }}
                     style={{ ...field, textAlign: 'right' }}
                   />
                   <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600 }}>

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   nearestService, insertItem, insertTitle, duplicateRow, moveRow, removeRow,
-  lineNumbers, acceptDecimal, toSavePayload, fromServerLines,
+  lineNumbers, acceptDecimal, formatPrice, toSavePayload, fromServerLines,
 } from '../lib/quoteEditor.mjs';
 
 const item = (key, service = 'ELEC', extra = {}) => ({ key, id: '', kind: 'item', description: key, service, qty: '1', unit: '', unitPrice: '10', ...extra });
@@ -90,9 +90,17 @@ test('blank qty saves as 1; blank price saves as null', () => {
   assert.equal(p.lines[0].unitPrice, null);
 });
 
+test('prices show two decimals once entered', () => {
+  assert.equal(formatPrice('88'), '88.00');
+  assert.equal(formatPrice('9.5'), '9.50');
+  assert.equal(formatPrice('.5'), '0.50');
+  assert.equal(formatPrice('12.34'), '12.34');
+  assert.equal(formatPrice(''), '');
+});
+
 test('server lines round-trip into editor rows', () => {
   const rows = fromServerLines([{ id: 'Q-1-L1', kind: 'item', description: 'x', service: 'ELEC', qty: 2, unit: 'pcs', unitPrice: 9.5 }]);
   assert.equal(rows[0].qty, '2');
-  assert.equal(rows[0].unitPrice, '9.5');
+  assert.equal(rows[0].unitPrice, '9.50');
   assert.ok(rows[0].key);
 });

@@ -63,7 +63,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 **Quotes (data layer; the screen arrives in Phase 3)**
 
 - **Every quote figure goes through `lib/quoteMaths.mjs`.** Integer-cent arithmetic, 2 dp, no GST. The editor, the saved totals, the PDF and the Xero invoice must never compute a figure their own way, or they will disagree by a cent.
-- **Saving a quote never edits its live lines.** New lines are appended as the next `version` in one request; flipping `Quotes.current_version` is the commit point; pruning comes last and may fail harmlessly. Sheets has no transactions, and a half-applied delete-and-rewrite would be a quote with half its rows.
+- **Saving a quote never edits its live lines.** New lines are appended as the next `version` in one request; flipping `Quotes.current_version` is the commit point; pruning runs after the response (`after()`) and may fail harmlessly. Sheets has no transactions, and a half-applied delete-and-rewrite would be a quote with half its rows.
+- **A prune deletes only versions strictly below current; a save writes above every version on the tab.** Both rules live in `lib/quoteVersions.mjs` with tests. A prune that deleted "everything but current" once raced a save mid-commit and deleted its new lines (2026-10-07, test data only). Never loosen either rule.
+- **A save is one parallel wave of reads, two ordered commit writes, one parallel wave of follow-up writes.** Don't add a read-back or a sequential read to it: each Sheets call is ~400ms and can stall for seconds.
 - **Line IDs are never reused.** `next_line_no` only goes up, so `Price history` (keyed on `line_id`) can never attach a new line to an old item's price.
 - **A billed stage is locked.** Its name, share and amount are read from the sheet, never from the request, and it cannot be removed while it carries a `xero_invoice_id`.
 - **Stage amounts are computed on read, never stored, except for billed ones.** The final payment is contract sum minus every other stage, so the schedule always sums to the contract sum to the cent.
