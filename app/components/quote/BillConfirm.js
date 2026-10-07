@@ -115,7 +115,11 @@ export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }
         {result?.billed && (
           <div role="status" style={{ padding: `${space.sm}px ${space.md}px`, background: color.successLight, color: color.success, borderRadius: radius.md, fontSize: font.size.sm, fontWeight: 600 }}>
             Invoice {result.invoiceNumber} created in Xero and approved.
+            {result.pdf?.attached && <div style={{ fontWeight: 400, marginTop: 4 }}>The quote PDF is attached to it.</div>}
           </div>
+        )}
+        {result?.billed && result.pdf?.error && (
+          <div role="alert" style={{ padding: `${space.sm}px ${space.md}px`, background: color.accentLight, color: color.accent, borderRadius: radius.md, fontSize: font.size.sm }}>{result.pdf.error}</div>
         )}
         {result?.alreadyBilled && (
           <div role="status" style={{ padding: `${space.sm}px ${space.md}px`, background: color.successLight, color: color.success, borderRadius: radius.md, fontSize: font.size.sm }}>{result.message}</div>

@@ -295,6 +295,7 @@ export default function QuoteScreen({ code, voId }) {
                     rows={stages} onChange={setStages} contractSum={totals.contractSum}
                     dirty={dirty} saved={!!data.quote} disabled={saving}
                     onBill={st => setBilling({ stage: st })}
+                    quoteId={data.quote?.id} onAttached={() => load()}
                   />
                   <VariationOrderList
                     vos={data.variationOrders || []}
@@ -316,6 +317,15 @@ export default function QuoteScreen({ code, voId }) {
               )}
               {dirty && !saving && (
                 <span style={{ fontSize: font.size.xs, color: color.accent, textAlign: 'center' }}>Unsaved changes</span>
+              )}
+              {data.quote && (
+                <a
+                  href={`/api/quotes/pdf?quote=${encodeURIComponent(data.quote.id)}`}
+                  download
+                  onClick={e => { if (dirty) { e.preventDefault(); setError('Save first: the PDF is made from the saved quote.'); } }}
+                  style={{ ...button.secondary, textAlign: 'center', textDecoration: 'none', opacity: dirty ? 0.6 : 1 }}
+                  title={dirty ? 'Save first: the PDF is made from the saved quote' : ''}
+                >Download {isVo ? 'variation order' : 'quote'} PDF</a>
               )}
               {notice && (
                 <p role="status" style={{

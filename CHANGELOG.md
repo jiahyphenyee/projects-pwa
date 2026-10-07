@@ -23,6 +23,7 @@ version and date and open a fresh one above.
 - `npm test` runs the calculation tests with Node's built-in runner.
 - Xero client (`lib/xeroClient.mjs`, `lib/xero.js`) on this app's own tokens, read-only until Phase 5.
 - `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
+- Quote PDF (logo, company details and T&Cs from System config, lines, totals, "No GST", payment schedule) with a Download button, attached once to the first stage invoice in Xero.
 - Variation orders: "+ Variation order" opens the same editor blank (numbered VO1, VO2… on first save); Bill now sends one approved invoice with every line, titles as text lines, units in the description, each line's Service, and the discount as a negative line, after checking the lines add up.
 - The project screen lists every payment stage and variation order with its amount and billed state.
 - Payment schedule on the quote screen (stages as shares, final payment as the balance, add and remove, over-100% warning) and **Bill now**: a confirm step with invoice number, Xero client, amount and line, PIN re-entry, then one approved invoice in Xero. Dry run by default.

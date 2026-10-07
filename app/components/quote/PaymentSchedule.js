@@ -4,6 +4,7 @@
 // billed on its own with "Bill now". Amounts come from lib/quoteMaths.mjs scheduleAmounts,
 // the same function the server bills with, so what is shown is what is invoiced.
 
+import { useState } from 'react';
 import { scheduleAmounts } from '@/lib/quoteMaths.mjs';
 import { acceptDecimal } from '@/lib/quoteEditor.mjs';
 import { formatAmount } from '@/app/components/TotalsCard';
@@ -26,7 +27,7 @@ export function fromServerStages(stages) {
     key: stageKey(), id: s.id, name: s.name, isFinal: s.isFinal,
     sharePct: s.isFinal || s.sharePct === null || s.sharePct === undefined ? '' : String(s.sharePct),
     billed: !!s.xeroInvoiceId, billedAmount: s.billedAmount, xeroInvoiceNumber: s.xeroInvoiceNumber || '',
-    xeroSyncStatus: s.xeroSyncStatus || '', billedAt: s.billedAt || '',
+    xeroSyncStatus: s.xeroSyncStatus || '', billedAt: s.billedAt || '', pdfAttachedAt: s.pdfAttachedAt || '',
   }));
 }
 
@@ -50,7 +51,7 @@ export function computeSchedule(rows, contractSum) {
   return { ...s, amounts };
 }
 
-export default function PaymentSchedule({ rows, onChange, contractSum, dirty, saved, onBill, disabled }) {
+export default function PaymentSchedule({ rows, onChange, contractSum, dirty, saved, onBill, disabled, quoteId, onAttached }) {
   const s = computeSchedule(rows, contractSum);
   const nextKey = rows.find(r => !r.billed && (s.amounts.get(r.key) || 0) > 0)?.key;
   const set = (key, change) => onChange(rows.map(r => (r.key === key ? { ...r, ...change } : r)));
@@ -162,6 +163,14 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
             The contract sum is now less than what has already been billed, so the final payment is negative. Billing is off until the quote is fixed.
           </div>
         )}
+        {rows.some(r => r.billed) && !rows.some(r => r.pdfAttachedAt) && (
+          <AttachPdf quoteId={quoteId} onAttached={onAttached} />
+        )}
+        {rows.some(r => r.pdfAttachedAt) && (
+          <span style={{ fontSize: font.size.xs, color: color.muted }}>
+            Quote PDF attached to {rows.find(r => r.pdfAttachedAt).xeroInvoiceNumber} in Xero.
+          </span>
+        )}
         {(dirty || !saved) && !s.overAllocated && (
           <span style={{ fontSize: font.size.xs, color: color.accent }}>{globalBlock}</span>
         )}
@@ -173,4 +182,48 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
 function formatPct(v) {
   if (v === '' || v === null || v === undefined) return '0%';
   return `${Number(Number(v).toFixed(2))}%`;
+}
+
+/**
+ * Shown only when a stage has been billed but the quote PDF never reached its invoice
+ * (the attachment failed, or the stage was billed before this existed). Needs the PIN,
+ * like every Xero write.
+ */
+function AttachPdf({ quoteId, onAttached }) {
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function go() {
+    setBusy(true); setMsg('');
+    try {
+      const res = await fetch('/api/quotes/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quoteId, pin }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Could not attach the PDF');
+      setMsg(d.attached ? `Attached to ${d.invoiceNumber}.` : d.skipped);
+      if (d.attached) onAttached?.();
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusy(false); setPin('');
+    }
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: space.sm, flexWrap: 'wrap', padding: `${space.sm}px ${space.md}px`, background: color.accentLight, borderRadius: radius.md }}>
+      <span style={{ fontSize: font.size.xs, color: color.accent, flex: '1 1 220px' }}>The quote PDF is not on the first invoice in Xero yet.</span>
+      {!open ? (
+        <button type="button" className="qe-btn" onClick={() => setOpen(true)} style={{ ...field, width: 'auto', padding: '0 12px', cursor: 'pointer', fontWeight: 600 }}>Attach quote PDF</button>
+      ) : (
+        <>
+          <input type="password" inputMode="numeric" maxLength={4} value={pin} placeholder="PIN" aria-label="Your PIN"
+            onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} style={{ ...field, width: 80 }} />
+          <button type="button" disabled={busy || pin.length !== 4} onClick={go}
+            style={{ ...field, width: 'auto', padding: '0 12px', cursor: 'pointer', fontWeight: 600, background: color.primary, color: '#fff', borderColor: color.primary }}>
+            {busy ? 'Attaching…' : 'Attach'}
+          </button>
+        </>
+      )}
+      {msg && <span style={{ fontSize: font.size.xs, color: color.text, flexBasis: '100%' }}>{msg}</span>}
+    </div>
+  );
 }
