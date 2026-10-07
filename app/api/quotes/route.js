@@ -3,11 +3,13 @@
 //   GET  /api/quotes?id=Q-0001          → { quote, lines, project, schedule }
 //   GET  /api/quotes?project=PRJ-042    → { quotes: [...] }
 //   GET  /api/quotes?screen=PRJ-042     → everything the quote screen needs, in one call
+//   GET  /api/quotes?screen=PRJ-042&vo=Q-0007 (or vo=new) → the same for a variation order
+//   GET  /api/quotes?summary=PRJ-042    → billed and unbilled stages and VOs, for the project screen
 //   POST /api/quotes  { ...saveQuote input }
 //
 // Nothing here talks to Xero. Billing gets its own route in Phase 5.
 
-import { loadQuote, listQuotes, saveQuote, loadQuoteScreen } from '@/lib/quotes';
+import { loadQuote, listQuotes, saveQuote, loadQuoteScreen, billingSummary } from '@/lib/quotes';
 
 export async function GET(req) {
   try {
@@ -15,10 +17,14 @@ export async function GET(req) {
     const id = searchParams.get('id');
     const project = searchParams.get('project');
     const screen = searchParams.get('screen');
+    const summary = searchParams.get('summary');
+
+    if (summary) return Response.json(await billingSummary(summary));
 
     if (screen) {
-      const found = await loadQuoteScreen(screen);
+      const found = await loadQuoteScreen(screen, { voId: searchParams.get('vo') || undefined });
       if (!found) return Response.json({ error: `No project with code ${screen}` }, { status: 404 });
+      if (found.notFound) return Response.json({ error: found.notFound }, { status: 404 });
       return Response.json(found);
     }
     if (id) {

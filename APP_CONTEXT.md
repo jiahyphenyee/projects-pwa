@@ -11,9 +11,10 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `app/` | Next.js App Router pages. One folder per screen. |
 | `app/api/` | Route handlers — the only place that touches Google Sheets. |
 | `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `wide` prop is for the quote screen only. |
-| `app/components/quote/` | The quote screen's parts: `LineEditor` (the line table), `TotalsPanel`. |
+| `app/components/quote/` | The quote screen's parts. `QuoteScreen` is the whole screen, shared by the quote (`/projects/<code>/quote`) and variation orders (`…/quote/vo/<id>`, or `vo/new`); `LineEditor`, `TotalsPanel`, `PaymentSchedule`, `VariationOrders`, `BillConfirm`, and `QuoteBillingCard` for the project screen. |
 | `lib/priceMemory.mjs` | Price suggestions and the price check, pure and tested. Runs in the browser on history loaded once with the screen. |
 | `lib/billing.js` | Billing one payment stage: preview with blockers, then PIN-checked, idempotent creation of one approved Xero invoice. |
+| `lib/voInvoice.mjs` | The exact Xero invoice for a variation order, with the lines-equal-contract-sum check. Pure, tested. |
 | `lib/invoiceNumbers.mjs`, `lib/stageInvoice.mjs` | Invoice numbering (INV-YYMMDD-XX) and the exact stage invoice payload. Pure, tested. |
 | `lib/pin.js` | Server-side PIN check against `PWA_USER_*`, for billing. |
 | `lib/quoteEditor.mjs` | The editor's row operations (insert, move, duplicate, delete, save payload) as pure, tested functions. |
@@ -86,6 +87,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 
 - **Every Xero write goes through `createInvoice()` in `lib/xero.js`**, which honours `isDryRun()` — true unless `XERO_DRY_RUN` is exactly `false`. In dry run nothing is written anywhere: the stage stays unbilled and the screen shows the payload. The `Expenses` tab stays read-only; receipted expenses reach Xero through `expense-pwa`.
 - **Billing a stage is idempotent and must stay so.** A stage with `xero_invoice_id` is never sent again. The number is stored with status `sending` before the Xero call; any retry looks that number up in Xero and adopts a matching invoice instead of creating another. The call carries an `Idempotency-Key`. A duplicate-number rejection takes the next number and retries once. Do not remove any of these.
+- **A variation order is a `Quotes` row with `kind = vo`, edited by the same `QuoteScreen` — never a copy of it.** Its billed state lives on that row (`xero_invoice_*`, `billed_*`), and `Quotes.status` carries `sending` / `error` / `billed` as a stage's `xero_sync_status` does. Billed VOs are locked; VOs never change stage amounts.
+- **No save while a billing attempt is unfinished** (`sending`): the retry must match the invoice by amount, and an edit would stop it matching.
+- **`lineAmount` is exact decimal arithmetic** (BigInt). Floating point turns 91.5 × 6.55 = 599.325 into 599.32; Xero says 599.33.
 - **Billing re-checks everything on the server**: the PIN (`lib/pin.js`), shares ≤ 100%, a client with a Xero ContactID that Xero still has, and that the amount and quote version match what was confirmed. The screen's checks are convenience only.
 - **Invoices are sent against `ContactID` only, as `AUTHORISED`, `NoTax`, with `Reference` = `display_address`, due date + `INVOICE_DUE_DAYS`, account `XERO_SALES_ACCOUNT_CODE`.**
 - **Never create a Xero contact.** Invoices go against `Contacts.xero_contact_id` (column H) only. The token's contacts scope is read-only, so an attempt fails in Xero as well as in review.

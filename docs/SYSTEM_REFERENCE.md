@@ -425,6 +425,16 @@ in `INVOICE_DUE_DAYS`. The PIN is re-entered and checked on the server. A stage 
 retry checks Xero first). **`XERO_DRY_RUN` must be exactly `false` for anything to reach
 Xero;** in dry run nothing is written and the confirm step shows the payload.
 
+**Billing a variation order (Phase 6).** A VO is billed in full: one invoice with a
+description-only first line "Variation order VO<n>", one line per item row (unit appended
+as "(per sqft)", `Service` tracking from `Categories.E` for the row's code), title rows as
+description-only lines, and any discount as a final line "Less: discount" for minus the
+amount. The lines are checked to add up to the VO's contract sum before anything is sent.
+Billed state is on the VO's `Quotes` row; `Quotes.status` goes draft → sending → billed
+(or error). A billed VO cannot be edited. Void and re-bill by hand as for a stage, clearing
+`xero_invoice_id`, `xero_invoice_number`, `billed_*` on the `Quotes` row and setting
+`status` back to `draft`.
+
 **Voiding and re-billing a stage by hand:** void the invoice in Xero, then in `Payment stages`
 clear that row's `billed_amount`, `billed_at`, `billed_by`, `xero_invoice_id`,
 `xero_invoice_number` and `xero_sync_status`. The stage is then unbilled and can be billed
@@ -441,6 +451,7 @@ nothing.
 `scripts/sample-quote.mjs` on 2026-10-06. Not a real job. Its client is `CON-009`
 "TEST – Heng Fa internal" (added 2026-10-07), linked to a Xero contact of the same name
 created for testing. Bill only test stages to it, and void them in Xero afterwards.
+`Q-0002` is a test variation order (VO1, $755.33) on the same project.
 First live test 2026-10-07: `INV-261007-01`, $495.33, billed from `ST-0001` by JY,
 checked in Xero and voided; the stage row was then reset to unbilled. Xero keeps the
 voided number, so the next invoice that day is `-02`.
