@@ -9,6 +9,7 @@ import Tag from '@/app/components/Tag';
 import LineRow from '@/app/components/LineRow';
 import FilterChip, { FilterGroup } from '@/app/components/FilterChip';
 import LockCodeInput from '@/app/components/LockCodeInput';
+import QuoteBillingCard from '@/app/components/quote/QuoteBillingCard';
 import { useProjects } from '@/lib/useProjects';
 import { recordRecent } from '@/lib/recents';
 import { getUser } from '@/lib/session';
@@ -311,24 +312,10 @@ export default function ProjectDetailPage({ params }) {
           )}
 
           {!isGeneral && isAdmin && (
-            <button
-              type="button"
-              className="row-label"
-              onClick={() => router.push(`/projects/${encodeURIComponent(project.code)}/quote`)}
-              style={{
-                ...card, width: '100%', padding: `${space.md}px ${space.lg}px`, marginBottom: space.lg,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space.md,
-                cursor: 'pointer', fontFamily: font.stack, textAlign: 'left', color: color.text,
-              }}
-            >
-              <span>
-                <span className="row-label-text" style={{ display: 'block', fontSize: font.size.md, fontWeight: 600 }}>Quote and billing</span>
-                <span style={{ display: 'block', fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
-                  Write the quote, set the payment schedule, bill stages to Xero
-                </span>
-              </span>
-              <span aria-hidden="true" style={{ fontSize: font.size.lg, color: color.muted }}>→</span>
-            </button>
+            <QuoteBillingCard
+              projectCode={project.code}
+              onOpen={() => router.push(`/projects/${encodeURIComponent(project.code)}/quote`)}
+            />
           )}
 
           {!isGeneral && (

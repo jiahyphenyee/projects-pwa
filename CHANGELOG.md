@@ -5,7 +5,10 @@ Every user-visible change to the Projects PWA, newest first.
 **One line per entry.** Say what changed, plus the why only when it is not obvious.
 Mechanism, reasoning and code belong in the commit; workbook and Xero facts belong in
 `docs/SYSTEM_REFERENCE.md`. Add bullets under **Unreleased** in the matching
-`[Added]` / `[Changed]` / `[Fixed]` / `[Removed]` block; on release, retitle it with the
+`[Added]` / `[Changed]` / `[Fixed]` / `[Fixed]
+- Line amounts are exact: 91.5 × $6.55 is $599.33, as Xero rounds it, not the $599.32 floating point gave.
+
+[Removed]` block; on release, retitle it with the
 version and date and open a fresh one above.
 
 ## Unreleased
@@ -20,6 +23,8 @@ version and date and open a fresh one above.
 - `npm test` runs the calculation tests with Node's built-in runner.
 - Xero client (`lib/xeroClient.mjs`, `lib/xero.js`) on this app's own tokens, read-only until Phase 5.
 - `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
+- Variation orders: "+ Variation order" opens the same editor blank (numbered VO1, VO2… on first save); Bill now sends one approved invoice with every line, titles as text lines, units in the description, each line's Service, and the discount as a negative line, after checking the lines add up.
+- The project screen lists every payment stage and variation order with its amount and billed state.
 - Payment schedule on the quote screen (stages as shares, final payment as the balance, add and remove, over-100% warning) and **Bill now**: a confirm step with invoice number, Xero client, amount and line, PIN re-entry, then one approved invoice in Xero. Dry run by default.
 - Price memory in the quote editor: past items suggested as you type (3+ characters, every word must match, up to 4), filling the last price for the project's property type only; a price check line under any row that matches a past item exactly.
 - Quote saves take about four round trips instead of fifteen; old line versions are tidied after the response.

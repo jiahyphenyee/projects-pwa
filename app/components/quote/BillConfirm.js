@@ -8,7 +8,8 @@ import { formatAmount } from '@/app/components/TotalsCard';
 import { formatIsoDate } from '@/lib/dates';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
-export default function BillConfirm({ quoteId, stage, onClose, onBilled }) {
+// `stage` set: bill that payment stage. `stage` absent: bill the variation order `quoteId`.
+export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }) {
   const [prep, setPrep]       = useState(null);
   const [error, setError]     = useState('');
   const [pin, setPin]         = useState('');
@@ -17,12 +18,13 @@ export default function BillConfirm({ quoteId, stage, onClose, onBilled }) {
 
   useEffect(() => {
     let live = true;
-    fetch(`/api/quotes/bill?quote=${encodeURIComponent(quoteId)}&stage=${encodeURIComponent(stage.id)}`, { cache: 'no-store' })
+    const qs = new URLSearchParams({ quote: quoteId, ...(stage ? { stage: stage.id } : {}) });
+    fetch(`/api/quotes/bill?${qs}`, { cache: 'no-store' })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not prepare the invoice'); return d; })
       .then(d => { if (live) setPrep(d); })
       .catch(err => { if (live) setError(err instanceof TypeError ? 'Offline — cannot reach Xero' : err.message); });
     return () => { live = false; };
-  }, [quoteId, stage.id]);
+  }, [quoteId, stage?.id]);
 
   async function confirm() {
     if (sending || pin.length !== 4) return;
@@ -32,7 +34,7 @@ export default function BillConfirm({ quoteId, stage, onClose, onBilled }) {
       const res = await fetch('/api/quotes/bill', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          quoteId, stageId: stage.id, pin,
+          quoteId, stageId: stage?.id, pin,
           expected: { amount: prep.preview.amount, quoteVersion: prep.preview.quoteVersion },
         }),
       });
@@ -59,7 +61,7 @@ export default function BillConfirm({ quoteId, stage, onClose, onBilled }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: space.lg,
     }}>
       <div style={{ ...card, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: space.xl, display: 'flex', flexDirection: 'column', gap: space.md }}>
-        <h2 style={{ margin: 0, fontSize: font.size.xl, fontWeight: 700 }}>Bill {stage.name}</h2>
+        <h2 style={{ margin: 0, fontSize: font.size.xl, fontWeight: 700 }}>{title}</h2>
 
         {!prep && !error && <p style={{ margin: 0, fontSize: font.size.sm, color: color.muted }}>Checking Xero…</p>}
 
@@ -74,11 +76,26 @@ export default function BillConfirm({ quoteId, stage, onClose, onBilled }) {
             <dt style={{ color: color.muted }}>Invoice number</dt><dd style={{ margin: 0, fontWeight: 700 }}>{p.invoiceNumber}</dd>
             <dt style={{ color: color.muted }}>Client (Xero)</dt><dd style={{ margin: 0, fontWeight: 600 }}>{p.client || '—'}</dd>
             <dt style={{ color: color.muted }}>Amount</dt><dd style={{ margin: 0, fontWeight: 700, fontSize: font.size.lg }}>${formatAmount(p.amount)} <span style={{ fontSize: font.size.xs, color: color.muted, fontWeight: 400 }}>No GST</span></dd>
-            <dt style={{ color: color.muted }}>Line</dt><dd style={{ margin: 0 }}>{p.description || '—'}</dd>
+            {!p.lines && <><dt style={{ color: color.muted }}>Line</dt><dd style={{ margin: 0 }}>{p.description || '—'}</dd></>}
             <dt style={{ color: color.muted }}>Reference</dt><dd style={{ margin: 0 }}>{p.reference}</dd>
             <dt style={{ color: color.muted }}>Date / due</dt><dd style={{ margin: 0 }}>{formatIsoDate(p.date)} / {formatIsoDate(p.dueDate)}</dd>
             <dt style={{ color: color.muted }}>Status in Xero</dt><dd style={{ margin: 0 }}>Approved (on the client&apos;s statement straight away)</dd>
           </dl>
+        )}
+
+        {p?.lines?.length > 0 && (
+          <div style={{ border: `1px solid ${color.border}`, borderRadius: radius.sm, overflow: 'hidden' }}>
+            <div style={{ padding: `${space.xs}px ${space.md}px`, background: '#EEF1F3', fontSize: font.size.xs, fontWeight: 600, color: color.muted }}>
+              Lines Xero will receive ({p.lines.length})
+            </div>
+            {p.lines.map((l, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 70px 90px', gap: space.sm, padding: `6px ${space.md}px`, borderTop: `1px solid ${color.border}`, fontSize: font.size.xs }}>
+                <span style={{ fontWeight: l.Quantity === undefined ? 700 : 400, whiteSpace: 'pre-wrap' }}>{l.Description}</span>
+                <span style={{ textAlign: 'right', color: color.muted }}>{l.Quantity === undefined ? '' : `${l.Quantity} ×`}</span>
+                <span style={{ textAlign: 'right' }}>{l.UnitAmount === undefined ? '' : `$${formatAmount(l.UnitAmount)}`}{l.Tracking ? <span style={{ display: 'block', color: color.muted }}>{l.Tracking[0].Option}</span> : null}</span>
+              </div>
+            ))}
+          </div>
         )}
 
         {blocked && (

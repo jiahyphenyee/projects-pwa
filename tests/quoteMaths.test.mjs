@@ -23,6 +23,14 @@ test('lineAmount multiplies and rounds; blanks are 0', () => {
   assert.equal(lineAmount('abc', 10), 0);
 });
 
+test('lineAmount rounds the true decimal product, not the floating-point one', () => {
+  assert.equal(lineAmount(91.5, 6.55), 599.33);     // 599.325 exactly
+  assert.equal(lineAmount(3, 1.115), 3.35);         // 3.345 exactly
+  assert.equal(lineAmount(0.5, 0.01), 0.01);        // 0.005 rounds up
+  assert.equal(lineAmount(-1, 98.33), -98.33);
+  assert.equal(lineAmount(99999, 99999.99), 9999899000.01);   // 99999 × 100000 − 999.99
+});
+
 test('subtotal sums item rows only, exact to the cent', () => {
   const lines = [title('t1'), item(1, 0.1), item(1, 0.2), item(3, 0.1), title('t2'), item(2, 1.005)];
   // 0.1 + 0.2 + 0.3 + 2.01 — lineAmount(2, 1.005) rounds to 2.01
