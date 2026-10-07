@@ -20,6 +20,7 @@ version and date and open a fresh one above.
 - `npm test` runs the calculation tests with Node's built-in runner.
 - Xero client (`lib/xeroClient.mjs`, `lib/xero.js`) on this app's own tokens, read-only until Phase 5.
 - `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
+- Payment schedule on the quote screen (stages as shares, final payment as the balance, add and remove, over-100% warning) and **Bill now**: a confirm step with invoice number, Xero client, amount and line, PIN re-entry, then one approved invoice in Xero. Dry run by default.
 - Price memory in the quote editor: past items suggested as you type (3+ characters, every word must match, up to 4), filling the last price for the project's property type only; a price check line under any row that matches a past item exactly.
 - Quote saves take about four round trips instead of fifteen; old line versions are tidied after the response.
 - Quote screen at `/projects/<code>/quote`, opened from a project (admins only): insert-anywhere lines, section titles with subtotals, optional units and discount, totals with "No GST", property type per project, save to Sheets and price history. Unit prices show two decimals once entered. Descriptions are a box that grows with the text; Shift + Enter adds a line break.
