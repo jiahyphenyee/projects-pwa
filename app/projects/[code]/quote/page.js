@@ -13,6 +13,7 @@ import { getUser } from '@/lib/session';
 import { ADMIN_ROLES } from '@/lib/constants';
 import { quoteTotals } from '@/lib/quoteMaths.mjs';
 import { blankItem, fromServerLines, toSavePayload, snapshot } from '@/lib/quoteEditor.mjs';
+import { buildMemory } from '@/lib/priceMemory.mjs';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const NO_DISCOUNT = { on: false, mode: '$', value: '' };
@@ -41,6 +42,13 @@ export default function QuotePage({ params }) {
     const cats = data?.categories || [];
     return cats.find(c => c.code === 'GENL' && c.active)?.code || cats.find(c => c.active)?.code || '';
   }, [data]);
+
+  // Built once per load. The quote's own saved lines are left out, so it never suggests or
+  // price-checks against itself.
+  const memory = useMemo(
+    () => (data ? buildMemory(data.priceHistory || [], { excludeQuoteId: data.quote?.id }) : null),
+    [data]
+  );
 
   const current = useCallback(
     (r = rows, u = showUnit, d = discount, t = propertyType) =>
@@ -235,9 +243,10 @@ export default function QuotePage({ params }) {
           </div>
 
           <LineEditor
-            rows={rows} onChange={setRows} showUnit={showUnit}
+            rows={rows} onChange={setRows} showUnit={showUnit} onShowUnit={setShowUnit}
             categories={data.categories} units={data.units}
             defaultService={defaultService} disabled={saving}
+            memory={memory} propertyType={propertyType}
           />
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: space.xl, alignItems: 'flex-start' }}>

@@ -4,11 +4,12 @@
 // container so the page never does. All row rules live in lib/quoteEditor.mjs; this file
 // only renders rows and turns clicks into those operations.
 
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   insertItem, insertTitle, duplicateRow, moveRow, removeRow, updateRow, lineNumbers, acceptDecimal, formatPrice,
 } from '@/lib/quoteEditor.mjs';
 import { lineAmount, sectionSubtotals } from '@/lib/quoteMaths.mjs';
+import { suggest, lastFor, applyPick, priceCheck, monthLabel, IMPORTED_LABEL } from '@/lib/priceMemory.mjs';
 import { formatAmount } from '@/app/components/TotalsCard';
 import { color, font, radius, space } from '@/lib/theme';
 
@@ -56,9 +57,13 @@ const DOWN = ['M12 5v14', 'M6 13l6 6 6-6'];
 const BIN = ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'];
 const COPY = ['M9 9h11v11H9z', 'M5 15V5a1 1 0 0 1 1-1h10'];
 
-export default function LineEditor({ rows, onChange, showUnit, categories, units, defaultService, disabled }) {
+export default function LineEditor({
+  rows, onChange, showUnit, onShowUnit, categories, units, defaultService, disabled, memory, propertyType,
+}) {
   const inputs = useRef(new Map());
   const pendingFocus = useRef(null);
+  const [focused, setFocused] = useState(null);   // the row whose suggestions may show
+  const serviceName = code => categories.find(c => c.code === code)?.name || code;
 
   useEffect(() => {
     if (!pendingFocus.current) return;
@@ -134,11 +139,18 @@ export default function LineEditor({ rows, onChange, showUnit, categories, units
             </>
           );
 
+          const check = !isTitle && memory ? priceCheck(memory, row.description, row.unitPrice, propertyType) : null;
+          const hits = !isTitle && memory && focused === row.key && row.description !== row.suggestDone
+            ? suggest(memory, row.description, propertyType)
+            : [];
+          const onFocus = () => setFocused(row.key);
+
           return (
-            <div key={row.key} style={{
+            <Fragment key={row.key}>
+            <div onFocus={onFocus} style={{
               display: 'grid', gridTemplateColumns: template, gap: space.sm, alignItems: 'center',
               padding: `${space.sm}px ${space.md}px`, borderTop: `1px solid ${color.border}`,
-              background: isTitle ? '#F3F5F6' : color.surface,
+              background: isTitle ? '#F3F5F6' : focused === row.key ? '#FBFCFC' : color.surface,
             }}>
               {isTitle ? (
                 <>
@@ -218,6 +230,19 @@ export default function LineEditor({ rows, onChange, showUnit, categories, units
                 </>
               )}
             </div>
+            {check && <PriceCheckLine check={check} propertyType={propertyType} />}
+            {hits.length > 0 && (
+              <SuggestionPanel
+                hits={hits} propertyType={propertyType} serviceName={serviceName}
+                onPick={item => {
+                  const { change, showUnit: wantUnit } = applyPick(row, item, propertyType);
+                  onChange(updateRow(rows, row.key, change));
+                  if (wantUnit && !showUnit) onShowUnit?.(true);
+                }}
+                onDismiss={() => onChange(updateRow(rows, row.key, { suggestDone: row.description }))}
+              />
+            )}
+            </Fragment>
           );
         })}
 
@@ -246,4 +271,88 @@ export function qtyOf(row) {
 }
 export function priceOf(row) {
   return String(row.unitPrice).trim() === '' ? 0 : Number(row.unitPrice);
+}
+
+const money = n => '$' + formatAmount(n);
+const quoteRef = q => `${money(q.price)}, ${monthLabel(q.date)}${q.client ? `, ${q.client}` : ''}`;
+
+/** One line under a row whose description exactly matches a past item. */
+function PriceCheckLine({ check, propertyType }) {
+  let text;
+  let tone = color.muted;
+  if (check.kind === 'last') text = `Last ${propertyType} quote: ${quoteRef(check.last)}.`;
+  else if (check.kind === 'same') text = `Same as your last ${propertyType} quote (${monthLabel(check.last.date)}${check.last.client ? `, ${check.last.client}` : ''}).`;
+  else if (check.kind === 'higher') { text = `${money(check.diff)} higher than your last ${propertyType} quote (${quoteRef(check.last)}).`; tone = color.accent; }
+  else if (check.kind === 'lower') { text = `${money(check.diff)} lower than your last ${propertyType} quote (${quoteRef(check.last)}).`; tone = color.accent; }
+  else {
+    const others = check.others.map(o => `${o.label} ${money(o.price)} (${monthLabel(o.date)})`).join(', ');
+    text = `No past ${propertyType || ''} quote for this item.${others ? ` For reference: ${others}.` : ''}`;
+    tone = color.accent;
+  }
+  return (
+    <div style={{ padding: `0 ${space.md}px ${space.sm}px 52px`, fontSize: font.size.xs, color: tone }}>{text}</div>
+  );
+}
+
+/** Past items matching what is being typed, directly under the row. */
+function SuggestionPanel({ hits, propertyType, serviceName, onPick, onDismiss }) {
+  return (
+    <div style={{
+      margin: `0 ${space.md}px ${space.md}px 52px`, border: `1px solid ${color.accent}`,
+      borderRadius: radius.sm, background: color.surface, overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: `${space.sm}px ${space.md}px`, background: color.accentLight, color: color.accent,
+        fontSize: font.size.xs, fontWeight: 600,
+      }}>
+        Quoted before. Picking one fills the description, service and unit
+        {propertyType ? `, and the last ${propertyType} price if there is one and the price is blank.` : '.'}
+      </div>
+      {hits.map(item => {
+        const last = lastFor(item, propertyType);
+        const shown = [...item.quotes].reverse().slice(0, 6);
+        const more = item.quotes.length - shown.length;
+        return (
+          <button
+            key={item.key} type="button" className="qe-btn" onClick={() => onPick(item)}
+            style={{
+              display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 2fr) 150px', gap: space.lg,
+              alignItems: 'center', width: '100%', textAlign: 'left', padding: `${space.sm}px ${space.md}px`,
+              border: 'none', borderTop: `1px solid ${color.border}`, background: color.surface,
+              fontFamily: font.stack, color: color.text, cursor: 'pointer', borderRadius: 0,
+            }}
+          >
+            <span style={{ minWidth: 0 }}>
+              {/* Imported invoice lines can be paragraphs long; two lines is enough to tell them apart */}
+              <span title={item.description} style={{
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                fontSize: font.size.sm, fontWeight: 600,
+              }}>{item.description}</span>
+              <span style={{ display: 'block', fontSize: font.size.xs, color: color.muted, marginTop: 2 }}>
+                {[item.service && serviceName(item.service), item.unit && `per ${item.unit}`].filter(Boolean).join(' · ') || 'No service or unit'}
+              </span>
+            </span>
+            <span style={{ minWidth: 0, fontSize: font.size.xs, color: color.muted, lineHeight: 1.5 }}>
+              {shown.map(q => `${q.propertyType || IMPORTED_LABEL} ${money(q.price)} (${monthLabel(q.date)}${q.client ? `, ${q.client}` : ''})`).join('  ·  ')}
+              {more > 0 && `  ·  +${more} earlier`}
+            </span>
+            <span style={{ textAlign: 'right' }}>
+              <span style={{ display: 'block', fontSize: font.size.lg, fontWeight: 700 }}>{last ? money(last.price) : '—'}</span>
+              <span style={{ display: 'block', fontSize: font.size.xs, color: color.muted }}>
+                {last ? `Last ${propertyType}, ${monthLabel(last.date)}` : `No ${propertyType || ''} quote; price stays blank`}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+      <button
+        type="button" className="qe-btn" onClick={onDismiss}
+        style={{
+          display: 'block', width: '100%', textAlign: 'left', padding: `${space.sm}px ${space.md}px`,
+          border: 'none', borderTop: `1px solid ${color.border}`, background: color.surface, borderRadius: 0,
+          color: color.primary, fontWeight: 600, fontSize: font.size.sm, fontFamily: font.stack, cursor: 'pointer',
+        }}
+      >None of these. Keep what I typed.</button>
+    </div>
+  );
 }

@@ -12,6 +12,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `app/api/` | Route handlers — the only place that touches Google Sheets. |
 | `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `wide` prop is for the quote screen only. |
 | `app/components/quote/` | The quote screen's parts: `LineEditor` (the line table), `TotalsPanel`. |
+| `lib/priceMemory.mjs` | Price suggestions and the price check, pure and tested. Runs in the browser on history loaded once with the screen. |
 | `lib/quoteEditor.mjs` | The editor's row operations (insert, move, duplicate, delete, save payload) as pure, tested functions. |
 | `lib/google.js` | Service-account auth and a memoised Sheets client. |
 | `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `writeAfterLast`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
@@ -72,6 +73,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Property type lives on `Projects` column M**, set once per project; a quote copies it at save time. `Projects` is now A:M. Column C stays protected and unwritten.
 - **The quote tabs use `appendRows()` and `deleteRowsByNumbers()`** — this app owns them outright and they have no checkbox columns. Those helpers are never used on shared tabs.
 - **`Categories.E xero_tracking_option` is the one Xero mapping.** Do not add a code→option map in this repo.
+- **A price is only ever filled from a past quote of the same property type, and only into a blank price.** Imported rows (blank `property_type`) are reference only. A quote never suggests or price-checks against its own saved lines. All in `lib/priceMemory.mjs`; keep it there.
 - **The quote editor is exempt from the `LineRow` rule.** It is a grid of inputs, not a list of read-only rows; `LineRow` remains the rule for every list on the other screens.
 - **Only the quote screen is wide.** `AppShell wide` raises the column to 1360px; the line table scrolls inside its own container on a phone. Every other screen stays at 720px.
 - **Row rules live in `lib/quoteEditor.mjs`, not the component.** A new row copies the nearest item's service; a title moves alone; deleting a title keeps its lines; the last row cannot be deleted; prices take at most 2 decimals; fully blank rows are dropped on save.
