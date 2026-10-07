@@ -18,6 +18,9 @@ version and date and open a fresh one above.
 - `scripts/xero-auth.mjs` authorises this app's own Xero connection, kept separate from the expense app's so neither can invalidate the other's tokens.
 - Quote data layer: `Quotes`, `Quote lines`, `Payment stages` and `Price history` tabs, `lib/quotes.js` save/load with versioned saves, `lib/quoteMaths.mjs` for every money figure, and `/api/quotes`. No screen yet.
 - `npm test` runs the calculation tests with Node's built-in runner.
+- Xero client (`lib/xeroClient.mjs`, `lib/xero.js`) on this app's own tokens, read-only until Phase 5.
+- `scripts/import-price-history.mjs` filled `Price history` with the line items of every past Xero sales invoice (1,019 rows), re-runnable without duplicates.
+- `scripts/link-xero-contacts.mjs` proposes Xero contact pairings and writes confirmed ones to the new `Contacts.xero_contact_id` column (H).
 - `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
 
 [Removed]
