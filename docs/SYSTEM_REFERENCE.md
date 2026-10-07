@@ -416,6 +416,20 @@ upserted on `line_id` and removed when their line is removed, so each saved line
 one row. Imported rows (Phase 2) are keyed on `xero_line_id` and have a blank
 `property_type`, which means "reference only, never fills a price".
 
+**Billing a stage (Phase 5).** `POST /api/quotes/bill` creates one `ACCREC` invoice,
+`AUTHORISED`, `NoTax`, against `Contacts.xero_contact_id`, numbered `INV-YYMMDD-XX` (Singapore
+date; `XX` from the highest of this app's numbers and Xero's for that date), `Reference` =
+the project's `display_address`, one line "<stage>, <share>% of contract sum $<sum>", due
+in `INVOICE_DUE_DAYS`. The PIN is re-entered and checked on the server. A stage row moves
+`xero_sync_status` blank → `sending` → `billed` (or `error`, kept with its number so a
+retry checks Xero first). **`XERO_DRY_RUN` must be exactly `false` for anything to reach
+Xero;** in dry run nothing is written and the confirm step shows the payload.
+
+**Voiding and re-billing a stage by hand:** void the invoice in Xero, then in `Payment stages`
+clear that row's `billed_amount`, `billed_at`, `billed_by`, `xero_invoice_id`,
+`xero_invoice_number` and `xero_sync_status`. The stage is then unbilled and can be billed
+again under a new number.
+
 **Imported history:** on 2026-10-06 `scripts/import-price-history.mjs` loaded 1,019 rows
 from 188 past sales invoices (1,121 lines; 102 skipped as description-only, zero or
 negative). Most are quantity-1 lump sums with the size in the description, so their
@@ -424,7 +438,12 @@ negative). Most are quantity-1 lump sums with the size in the description, so th
 nothing.
 
 **Test data:** `PRJ-208` "TEST - quote and billing" holds `Q-0001`, written by
-`scripts/sample-quote.mjs` on 2026-10-06. Not a real job.
+`scripts/sample-quote.mjs` on 2026-10-06. Not a real job. Its client is `CON-009`
+"TEST – Heng Fa internal" (added 2026-10-07), linked to a Xero contact of the same name
+created for testing. Bill only test stages to it, and void them in Xero afterwards.
+First live test 2026-10-07: `INV-261007-01`, $495.33, billed from `ST-0001` by JY,
+checked in Xero and voided; the stage row was then reset to unbilled. Xero keeps the
+voided number, so the next invoice that day is `-02`.
 
 ---
 

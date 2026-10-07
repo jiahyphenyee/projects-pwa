@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import LineEditor, { qtyOf, priceOf } from '@/app/components/quote/LineEditor';
 import TotalsPanel from '@/app/components/quote/TotalsPanel';
+import PaymentSchedule, { fromServerStages, defaultStages } from '@/app/components/quote/PaymentSchedule';
+import BillConfirm from '@/app/components/quote/BillConfirm';
 import { getUser } from '@/lib/session';
 import { ADMIN_ROLES } from '@/lib/constants';
 import { quoteTotals } from '@/lib/quoteMaths.mjs';
@@ -29,6 +31,8 @@ export default function QuotePage({ params }) {
   const [showUnit, setShowUnit] = useState(false);
   const [discount, setDiscount] = useState(NO_DISCOUNT);
   const [propertyType, setType] = useState('');
+  const [stages, setStages]     = useState([]);
+  const [billing, setBilling]   = useState(null);    // the stage whose confirm step is open
   const [saved, setSaved]       = useState('');      // snapshot of the last loaded/saved state
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -51,9 +55,8 @@ export default function QuotePage({ params }) {
   );
 
   const current = useCallback(
-    (r = rows, u = showUnit, d = discount, t = propertyType) =>
-      snapshot(r, { u, d: d.on ? [d.mode, d.value] : null, t }),
-    [rows, showUnit, discount, propertyType]
+    () => snapshot(rows, { u: showUnit, d: discount.on ? [discount.mode, discount.value] : null, t: propertyType, s: stageShape(stages) }),
+    [rows, showUnit, discount, propertyType, stages]
   );
   const dirty = !!data && current() !== saved;
 
@@ -68,12 +71,14 @@ export default function QuotePage({ params }) {
       ? { on: true, mode: q.discountMode, value: q.discountValue === null ? '' : String(q.discountValue) }
       : NO_DISCOUNT;
     const nextType = payload.project?.propertyType || '';
+    const nextStages = payload.schedule?.stages?.length ? fromServerStages(payload.schedule.stages) : defaultStages();
     setData(payload);
+    setStages(nextStages);
     setRows(nextRows);
     setShowUnit(nextUnit);
     setDiscount(nextDiscount);
     setType(nextType);
-    setSaved(snapshot(nextRows, { u: nextUnit, d: nextDiscount.on ? [nextDiscount.mode, nextDiscount.value] : null, t: nextType }));
+    setSaved(snapshot(nextRows, { u: nextUnit, d: nextDiscount.on ? [nextDiscount.mode, nextDiscount.value] : null, t: nextType, s: stageShape(nextStages) }));
   }, []);
 
   const load = useCallback(async () => {
@@ -122,6 +127,7 @@ export default function QuotePage({ params }) {
     if (!propertyType) { setError('Choose the property type before saving.'); return; }
     const payload = toSavePayload(rows);
     if (payload.error) { setError(payload.error); return; }
+    if (stages.some(st => !st.isFinal && !st.name.trim())) { setError('Every payment stage needs a name.'); return; }
 
     setSaving(true);
     try {
@@ -137,6 +143,10 @@ export default function QuotePage({ params }) {
           showUnit,
           discountMode:  discount.on ? discount.mode : '',
           discountValue: discount.on && discount.value !== '' ? Number(discount.value) : null,
+          stages:        stages.map(st => ({
+            id: st.id || undefined, name: st.name.trim(), isFinal: st.isFinal,
+            sharePct: st.isFinal || st.sharePct === '' ? null : Number(st.sharePct),
+          })),
           user:          user?.name || '',
         }),
       });
@@ -250,8 +260,13 @@ export default function QuotePage({ params }) {
           />
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: space.xl, alignItems: 'flex-start' }}>
-            {/* Payment schedule card arrives here in Phase 5 */}
-            <div style={{ flex: '1 1 520px', minWidth: 0 }} />
+            <div style={{ flex: '1 1 520px', minWidth: 0 }}>
+              <PaymentSchedule
+                rows={stages} onChange={setStages} contractSum={totals.contractSum}
+                dirty={dirty} saved={!!data.quote} disabled={saving}
+                onBill={st => setBilling(st)}
+              />
+            </div>
 
             <div style={{ flex: '0 1 420px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: space.md }}>
               <TotalsPanel totals={totals} discount={discount} onDiscount={setDiscount} disabled={saving} />
@@ -272,8 +287,20 @@ export default function QuotePage({ params }) {
           </div>
         </div>
       )}
+      {billing && data?.quote && (
+        <BillConfirm
+          quoteId={data.quote.id} stage={billing}
+          onClose={() => setBilling(null)}
+          onBilled={() => load()}
+        />
+      )}
     </AppShell>
   );
+}
+
+/** The parts of the schedule a save sends, for the unsaved-changes check. */
+function stageShape(stages) {
+  return stages.map(st => [st.id, st.name, st.sharePct, st.isFinal]);
 }
 
 function Fact({ label, value }) {

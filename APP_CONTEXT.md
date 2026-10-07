@@ -13,6 +13,9 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `wide` prop is for the quote screen only. |
 | `app/components/quote/` | The quote screen's parts: `LineEditor` (the line table), `TotalsPanel`. |
 | `lib/priceMemory.mjs` | Price suggestions and the price check, pure and tested. Runs in the browser on history loaded once with the screen. |
+| `lib/billing.js` | Billing one payment stage: preview with blockers, then PIN-checked, idempotent creation of one approved Xero invoice. |
+| `lib/invoiceNumbers.mjs`, `lib/stageInvoice.mjs` | Invoice numbering (INV-YYMMDD-XX) and the exact stage invoice payload. Pure, tested. |
+| `lib/pin.js` | Server-side PIN check against `PWA_USER_*`, for billing. |
 | `lib/quoteEditor.mjs` | The editor's row operations (insert, move, duplicate, delete, save payload) as pure, tested functions. |
 | `lib/google.js` | Service-account auth and a memoised Sheets client. |
 | `lib/sheets.js` | Generic Sheets layer: `getTab`, `readTab`, `appendRow`, `writeAfterLast`, `updateRange`, `findRowById`, `safe`, `nextId`. Not project-aware. |
@@ -81,7 +84,10 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 
 **Business rules**
 
-- **This app reads from Xero but does not yet write to it.** The `Expenses` tab is read-only to it; receipted expenses reach Xero through the sibling `expense-pwa`. Every Xero call goes through `lib/xeroClient.mjs`; the one write function arrives in Phase 5 and must honour `isDryRun()`, which is true unless `XERO_DRY_RUN` is exactly `false`.
+- **Every Xero write goes through `createInvoice()` in `lib/xero.js`**, which honours `isDryRun()` — true unless `XERO_DRY_RUN` is exactly `false`. In dry run nothing is written anywhere: the stage stays unbilled and the screen shows the payload. The `Expenses` tab stays read-only; receipted expenses reach Xero through `expense-pwa`.
+- **Billing a stage is idempotent and must stay so.** A stage with `xero_invoice_id` is never sent again. The number is stored with status `sending` before the Xero call; any retry looks that number up in Xero and adopts a matching invoice instead of creating another. The call carries an `Idempotency-Key`. A duplicate-number rejection takes the next number and retries once. Do not remove any of these.
+- **Billing re-checks everything on the server**: the PIN (`lib/pin.js`), shares ≤ 100%, a client with a Xero ContactID that Xero still has, and that the amount and quote version match what was confirmed. The screen's checks are convenience only.
+- **Invoices are sent against `ContactID` only, as `AUTHORISED`, `NoTax`, with `Reference` = `display_address`, due date + `INVOICE_DUE_DAYS`, account `XERO_SALES_ACCOUNT_CODE`.**
 - **Never create a Xero contact.** Invoices go against `Contacts.xero_contact_id` (column H) only. The token's contacts scope is read-only, so an attempt fails in Xero as well as in review.
 - **This app has its own Xero app registration and its own tokens**, stored in `System config` as `XERO_PROJECTS_ACCESS_TOKEN` / `_REFRESH_TOKEN` / `_TOKEN_EXPIRY`. Never read or refresh the expense app's `XERO_ACCESS_TOKEN` / `XERO_REFRESH_TOKEN`: Xero refresh tokens are single-use, so two apps sharing one set take turns locking each other out.
 - **Whether a receipted expense has been invoiced is tracked in its own tab**, `Receipted expense invoicing` (`TAB_RECEIPTED_INVOICING`), keyed by `expense_id` and joined on read. That state is a fact about *our* billing, not about the expense claim, so it must not be written into `Expenses` — which stays read-only, and whose every column belongs to `expense-pwa` or its Xero sync. Rows are created lazily on the first tick: **absent means not invoiced**. Non-receipted costs are unaffected; they keep their own state in `Project costs` J:L. Both are normalised to one `{ invoiced, invoicedDate }` shape by `app/api/costs`, so no screen branches on which tab it came from.
