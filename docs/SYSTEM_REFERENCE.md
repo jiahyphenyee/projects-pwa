@@ -249,6 +249,17 @@ row 5.
 `xero_contact_id` is the Xero ContactID the Projects PWA invoices against; a client
 without one cannot be billed. Filled by `scripts/link-xero-contacts.mjs`, which only
 writes pairings a person has confirmed — names in the two systems rarely match exactly.
+All 8 clients linked 2026-10-07. `CON-007 Sam (Grab)` is treated as a different client
+from the Xero contact "Sam" (pending William's confirmation).
+
+**Adding a new client:**
+1. Create the contact in Xero first (Contacts → New contact), with its real billing name.
+2. Add a row to `Contacts` with the next `CON-` id (Apps Script fills it on edit), the
+   `company_name`, and `client` in `contact_types`.
+3. Copy the ContactID from the Xero contact page URL (the part after `/contacts/contact/`)
+   into column H `xero_contact_id`. Or run `node scripts/link-xero-contacts.mjs` to list
+   candidates and `--apply CON-0xx=<ContactID>` to write it.
+4. The project's `client_name` must match `company_name` exactly so `client_id` resolves.
 
 ### 5.7 Workers
 
