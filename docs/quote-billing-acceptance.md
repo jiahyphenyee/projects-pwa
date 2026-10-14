@@ -49,7 +49,7 @@ using the test project `PRJ-208` and the test contact "TEST – Heng Fa internal
 - Appended, never inserted: `Projects.M property_type`, `Categories.E xero_tracking_option`, `Contacts.H xero_contact_id`. Both apps read these tabs by index, and every existing index is unchanged.
 - New System config keys: `XERO_PROJECTS_*` tokens, `XERO_SALES_ACCOUNT_CODE`, `INVOICE_DUE_DAYS`, `QUOTE_UNITS`, `QUOTE_PROPERTY_TYPES`, `STAGE_TRACKING_OPTION`, `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_EMAIL`, `QUOTE_TERMS`.
 
-**`expense-pwa`:** branch `categories-xero-option` reads the Xero tracking option from `Categories.E` instead of its hard-coded map. Not merged or deployed yet.
+**`expense-pwa`:** reads the Xero tracking option from `Categories.E` instead of its hard-coded map. Merged and pushed to its `main` on 2026-10-14 (`5cb2fe8`), together with the 11 Sep transport-description change that was waiting there.
 
 ## Before go-live
 
@@ -57,6 +57,6 @@ using the test project `PRJ-208` and the test contact "TEST – Heng Fa internal
 2. Put the logo at `assets/quote-logo.png` (optional).
 3. Add `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_TENANT_ID` and `XERO_DRY_RUN` to Vercel (see `docs/DEPLOY.md`).
 4. One live run on the test project: bill a VO and a first stage, check both in Xero (lines, the PDF attachment), void both, reset the rows.
-5. Merge and deploy `expense-pwa` `categories-xero-option`.
+5. ~~Merge and deploy `expense-pwa` `categories-xero-option`.~~ Done 2026-10-14; check one Aircon expense bill is tagged "Aircon" in Xero.
 6. Merge `quote-billing/integration` into `main` and deploy with `XERO_DRY_RUN=true`; switch it to `false` in Vercel when William is ready.
 7. Separately: the installed Next.js 16.3.0 has a critical security advisory; upgrade it on its own branch.

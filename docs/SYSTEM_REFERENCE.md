@@ -183,7 +183,7 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | A `category_code` | Short code, no spaces |
 | B `category_name` | Display name |
 | C **`active_codes`** | *[corrected] — doc called this `is_active`.* String `"TRUE"` |
-| E **`xero_tracking_option`** | **New 2026-10-06.** The Xero "Service" option name for this code, e.g. `CEIL` → `Partition / Ceiling`. Blank = send untagged. The one list both apps should read; the expense PWA's hard-coded map is to be retired |
+| E **`xero_tracking_option`** | **New 2026-10-06.** The Xero "Service" option name for this code, e.g. `CEIL` → `Partition / Ceiling`. Blank = send untagged. The one list both apps read (the expense PWA since 2026-10-14; its hard-coded map is gone). Edit here, not in code |
 
 **Live list (14, all active):** PLMB Plumbing · TILE Tiling · PAINT Painting ·
 ELEC Electrical · CARP Carpentry · DISP Disposal · HACK Hacking · GENL General ·
