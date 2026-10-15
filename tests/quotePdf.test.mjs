@@ -51,6 +51,13 @@ test('renders a one-page PDF that opens', async () => {
   assert.equal(doc.getTitle(), 'QUOTATION Q-0001');
 });
 
+test('validity prints only when set', async () => {
+  const withIt = await PDFDocument.load(await renderQuotePdf(model({ validUntil: '2026-11-06', validityDays: 30 })));
+  assert.equal(withIt.getPageCount(), 1);
+  const without = await PDFDocument.load(await renderQuotePdf(model({ validUntil: '' })));
+  assert.equal(without.getPageCount(), 1);
+});
+
 test('a long quote runs onto more pages; no title, unit, discount or schedule still renders', async () => {
   const lines = Array.from({ length: 90 }, (_, i) => ({ kind: 'item', description: `Line ${i + 1} with a fairly long description to wrap`, qty: 1, unit: '', unitPrice: 10, amount: 10 }));
   const doc = await PDFDocument.load(await renderQuotePdf(model({

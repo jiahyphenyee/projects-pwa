@@ -243,7 +243,8 @@ the error and let William retry. Store the Xero invoice ID on success so a retry
 create a duplicate.
 
 **Quote PDF:** the app generates the quote PDF itself, with section titles, units, section
-subtotals, discount, contract sum, "No GST" and the payment schedule.
+subtotals, discount, contract sum, "No GST" and the payment schedule. It can share the
+service report module's PDF setup (logo and T&Cs from the config tabs).
 
 ## Data model
 
@@ -426,6 +427,12 @@ for tidiness at any time. The script does not reference `Reports`.
 - Xero contact linking (the `xero_contact_id` column and the pairing script) is done in
   **Phase 2**, the first phase that reads from Xero, so the column is filled well before
   Phase 5 needs it.
+
+**Added 2026-10-16 (JY).** The quote PDF shows how long the quote is valid: "Valid until
+<date>" beside the quote date, and a line under the totals, counted from the quote's date.
+The number of days is `QUOTE_VALIDITY_DAYS` in System config (not in the original spec,
+plan or mock-up). Note on the line above: no service report module exists, so the logo is a
+file (`assets/quote-logo.png`) and the T&Cs are `QUOTE_TERMS` in System config.
 
 **System config row positions do not matter.** Every key (tokens included) is found by
 name in column A, never by row number, so rows can be inserted or moved freely.

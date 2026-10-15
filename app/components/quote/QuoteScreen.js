@@ -327,6 +327,11 @@ export default function QuoteScreen({ code, voId }) {
                   title={dirty ? 'Save first: the PDF is made from the saved quote' : ''}
                 >Download {isVo ? 'variation order' : 'quote'} PDF</a>
               )}
+              {data.quote && data.pdfGaps?.length > 0 && (
+                <span style={{ fontSize: font.size.xs, color: color.accent }}>
+                  The PDF has no {data.pdfGaps.join(', ')} yet. Fill them in System config; the logo is a file in the app.
+                </span>
+              )}
               {notice && (
                 <p role="status" style={{
                   padding: `${space.sm}px ${space.md}px`, background: color.successLight,
