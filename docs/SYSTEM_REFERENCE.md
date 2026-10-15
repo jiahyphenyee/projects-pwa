@@ -159,6 +159,9 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | **QUOTE_UNITS** | pcs, sqft, ft run, lot, room, lumpsum | Unit dropdown |
 | **QUOTE_PROPERTY_TYPES** | HDB, Condo, Commercial | Property type buttons |
 | **STAGE_TRACKING_OPTION** | *(blank)* | Service tracking on stage invoices; blank = untagged |
+| **COMPANY_ADDRESS / COMPANY_PHONE / COMPANY_EMAIL** | *(text)* | Letterhead of the quote PDF. Line breaks in the cell are kept |
+| **QUOTE_TERMS** | *(text)* | T&Cs printed at the end of the quote PDF; blank = no T&C section |
+| **QUOTE_VALIDITY_DAYS** | *(number)* | "Valid until" = the quote's date + this many days; blank = not printed |
 | **TARGET_MARGIN_PCT** | 35 | **New 2026-10-15.** Gross margin aimed for; budget = quoted × (1 − this). Confirmed by William |
 | **WATCH_LEVEL_PCT / OVER_LEVEL_PCT** | 80 / 100 | Budget used at which an ongoing job turns Watch / above which it is Over budget. Placeholders |
 | **CHASE_AFTER_DAYS / OVERDUE_AFTER_DAYS** | 30 / 60 | Unpaid invoice age after which it shows Chase / Overdue. Placeholders |
@@ -442,8 +445,8 @@ Billed state is on the VO's `Quotes` row; `Quotes.status` goes draft → sending
 **Quote PDF (Phase 7).** `GET /api/quotes/pdf?quote=<id>` makes the PDF from the saved
 quote or VO: logo (`assets/quote-logo.png`), `COMPANY_NAME`, `COMPANY_UEN`,
 `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_EMAIL`, client, project, property type, lines
-(titles as headings, no section subtotals), totals with "No GST", the payment schedule, and
-`QUOTE_TERMS`. Blank or `[placeholder]` values are left off. After the first stage of a
+(titles as headings, no section subtotals), totals with "No GST", "Valid until" from
+`QUOTE_VALIDITY_DAYS`, the payment schedule, and `QUOTE_TERMS`. Blank or `[placeholder]` values are left off. After the first stage of a
 quote is billed, the PDF is attached to that invoice and `Payment stages.pdf_attached_at`
 (column O) is stamped; it is never attached twice. `POST /api/quotes/pdf` retries a failed
 attachment, with the PIN.

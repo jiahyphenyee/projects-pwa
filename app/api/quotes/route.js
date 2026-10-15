@@ -10,6 +10,7 @@
 // Nothing here talks to Xero. Billing gets its own route in Phase 5.
 
 import { loadQuote, listQuotes, saveQuote, loadQuoteScreen, billingSummary } from '@/lib/quotes';
+import { pdfSetupGaps } from '@/lib/quoteDocument';
 
 export async function GET(req) {
   try {
@@ -22,7 +23,11 @@ export async function GET(req) {
     if (summary) return Response.json(await billingSummary(summary));
 
     if (screen) {
-      const found = await loadQuoteScreen(screen, { voId: searchParams.get('vo') || undefined });
+      const [found, gaps] = await Promise.all([
+        loadQuoteScreen(screen, { voId: searchParams.get('vo') || undefined }),
+        pdfSetupGaps().catch(() => []),
+      ]);
+      if (found && !found.notFound) found.pdfGaps = gaps;
       if (!found) return Response.json({ error: `No project with code ${screen}` }, { status: 404 });
       if (found.notFound) return Response.json({ error: found.notFound }, { status: 404 });
       return Response.json(found);
