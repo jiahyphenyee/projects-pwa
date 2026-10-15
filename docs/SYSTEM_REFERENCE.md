@@ -159,6 +159,9 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | **QUOTE_UNITS** | pcs, sqft, ft run, lot, room, lumpsum | Unit dropdown |
 | **QUOTE_PROPERTY_TYPES** | HDB, Condo, Commercial | Property type buttons |
 | **STAGE_TRACKING_OPTION** | *(blank)* | Service tracking on stage invoices; blank = untagged |
+| **TARGET_MARGIN_PCT** | 35 | **New 2026-10-15.** Gross margin aimed for; budget = quoted × (1 − this). Confirmed by William |
+| **WATCH_LEVEL_PCT / OVER_LEVEL_PCT** | 80 / 100 | Budget used at which an ongoing job turns Watch / above which it is Over budget. Placeholders |
+| **CHASE_AFTER_DAYS / OVERDUE_AFTER_DAYS** | 30 / 60 | Unpaid invoice age after which it shows Chase / Overdue. Placeholders |
 | TAB_CATEGORIES | Categories | |
 | TAB_PH | Public holidays | |
 | TAB_RESTDAYS | Rest days | |
@@ -292,6 +295,7 @@ Written by the **Expense PWA**, pushed to Xero. Read-only to the Projects PWA.
 | N–O | `approved_by`, `approved_date` | |
 | P–R | `xero_bill_id`, `xero_sync_status`, `xero_sync_error` | Script-written |
 | S | `receipt_status` | *[corrected 2026-09-07 — the doc listed this tab as A:R. The Expense PWA added `receipt_status` at S (`attached` \| `declared_none`) and writes A:S; it reads A:S too.]* |
+| T | `cost_type` | **New 2026-10-15.** What the claim paid for, chosen on the expense form: `material` \| `labour (external)` (shown as "Subcontractor") \| `transport`. Same dropdown as `Project costs.F`. Blank on rows before that date; the Projects PWA then counts `TRANS`/`VEHIC` as transport and the rest as material. The Expense PWA writes and reads A:T; the Projects PWA reads A:T |
 
 > **[corrected] Expense IDs are not max+1.** The code uses a row count plus a timestamp
 > suffix: `` `EXP-${rowCount}-${Date.now().slice(-4)}` `` — hence `EXP-092-2143`. Row
@@ -544,9 +548,10 @@ app/
 ├── page.js                 PIN login
 ├── home/                   recent 5, search, new project
 ├── projects/               full list, paged client-side
-├── projects/[code]/        totals, one merged cost list, invoiced toggle
+├── projects/[code]/        cost split, admin figures (quoted, profit, margin, flag),
+│                           Xero invoices, by-service table, one merged cost list
 ├── projects/new/           create project
-└── api/  auth · projects · costs · reference
+└── api/  auth · projects · costs · dashboard · quotes · reference
 lib/  google · sheets · projects · costs · expenses · receiptedInvoicing ·
       rollups · dates · localCache · recents · useProjects · useOnline ·
       session · theme · constants
@@ -558,7 +563,10 @@ public/sw.js                service worker (production only)
 **Features:** recent projects (localStorage, per user), punctuation-insensitive search
 (`0990` finds `#09-90`), project creation, cost entry with type + category, per-line and
 bulk invoiced marking, edit and delete, project totals combining own costs with receipted
-spend, offline reads.
+spend, offline reads. Since 2026-10-15 the project screen splits cost by type, and for
+admins shows quoted, profit, margin, budget used and a status flag, the project's Xero
+invoices with ageing, and quoted against spent per service (formulas in
+`lib/projectFigures.mjs`).
 
 ---
 
@@ -598,6 +606,15 @@ created untagged with a warning. `Plastering` has no category row mapped to it.
 
 **Tokens** expire every 30 minutes, are stored in `System config`, and refresh tokens are
 single-use. Re-initialise with `node scripts/xero-auth.mjs`.
+
+**Sales invoices → projects (Projects PWA, read-only, 2026-10-15).** The project screen
+reads every `ACCREC` invoice and `ACCRECCREDIT` credit note (status AUTHORISED or PAID)
+and matches each to a project by `Reference`: exactly `Projects.display_address` first
+(case and spacing ignored), else the same block number, first street word and unit
+number. A Reference fitting two projects is listed as ambiguous and counted nowhere.
+Invoices billed by this app always carry `Reference = display_address`. Hand-raised ones
+mostly do too (28 of 30 sampled exactly, the other 2 on block and unit); one whose
+Reference names no project's address is not counted on any project.
 
 ---
 
@@ -734,6 +751,7 @@ index maps.
 | 1.0 | 2025 | Initial build |
 | 2.0 | 2026-06 | Expense PWA + Xero integration; receipts moved to Xero attachments |
 | 2.1 | 2026-06 | Expense PWA UX fixes: share sheet, iOS picker, history pagination |
+| **3.3** | **2026-10-15** | **Project screen figures (dashboard checkpoint 1).** `Receipted expenses.T cost_type`, chosen on the expense form. Five threshold keys in `System config`. The Projects PWA reads Xero sales invoices and credit notes and matches them to projects by Reference (§12); no new tabs. |
 | **3.2** | **2026-10-06** | **Quote and billing, data layer (Phase 1).** New tabs `Quotes`, `Quote lines`, `Payment stages`, `Price history` (§5.15) with their `TAB_*` keys and five quote config keys. `Projects.M property_type` and `Categories.E xero_tracking_option` appended. Deleted the unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and the `GST_RATE` / `INVOICE_PREFIX` keys. The Projects PWA gained its own Xero app and `XERO_PROJECTS_*` tokens (no Xero writes yet). |
 | **3.1** | **2026-09-07** | **Invoiced tracking extended to receipted expenses.** New `Receipted expense invoicing` tab and `TAB_RECEIPTED_INVOICING` — the state could not go in `Receipted expenses`, which the Projects PWA must not write. The project screen now shows one merged cost list instead of two sections; receipted rows stay read-only there and the API enforces it. Corrected §5.9: that tab is A:S, not A:R. |
 | **3.0** | **2026-08-09** | **Projects PWA built.** New `Project costs` tab and `TAB_PROJECT_COSTS`. `Expenses` renamed to `Receipted expenses`; both apps made config-driven so tab names resolve at runtime. Workbook timezone corrected to Asia/Singapore. Fixed junk note rows leaking into expense history. Corrected the Xero tracking map against the live category list (`WRKR`, `CLEAN` added; `MATL`, `WTRP` removed). Nine documentation corrections — see §22. |

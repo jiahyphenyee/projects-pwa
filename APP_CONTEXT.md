@@ -10,7 +10,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 |---|---|
 | `app/` | Next.js App Router pages. One folder per screen. |
 | `app/api/` | Route handlers — the only place that touches Google Sheets. |
-| `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `wide` prop is for the quote screen only. |
+| `app/components/` | Shared UI. `AppShell` is the auth gate + header for every signed-in screen; its `layout` prop sets the page width by screen type (workflow 720 / dashboard 1280 / editor 1360). |
+| `app/components/dashboard/` | Dashboard building blocks: `Panel`, `StatTile`, `TileGrid` / `PanelGrid` / `DashboardStack`, and shared table styles. Built only from `lib/theme.js` tokens. |
 | `app/components/quote/` | The quote screen's parts. `QuoteScreen` is the whole screen, shared by the quote (`/projects/<code>/quote`) and variation orders (`…/quote/vo/<id>`, or `vo/new`); `LineEditor`, `TotalsPanel`, `PaymentSchedule`, `VariationOrders`, `BillConfirm`, and `QuoteBillingCard` for the project screen. |
 | `lib/priceMemory.mjs` | Price suggestions and the price check, pure and tested. Runs in the browser on history loaded once with the screen. |
 | `lib/billing.js` | Billing one payment stage: preview with blockers, then PIN-checked, idempotent creation of one approved Xero invoice. |
@@ -27,6 +28,12 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/expenses.js` | READ-ONLY view of the receipted `Expenses` tab. Never writes. |
 | `lib/receiptedInvoicing.js` | Invoiced state for receipted expenses, in the separate tab this app owns. |
 | `lib/rollups.js` | All cost aggregation, the merge of the two cost sources, and the `GEN-000` exclusion rule. |
+| `lib/projectFigures.mjs` | Every project-screen figure past the cost list: cost split, quoted value by service, profit/margin/budget, status flag, invoice ageing, invoice→project matching, possible duplicates. Pure, tested. |
+| `lib/projectInvoices.js` | Every live Xero sales invoice and credit note, normalised and memoised for 10 minutes. Read-only. |
+| `app/api/dashboard/` | Quote figures, the project's matched Xero invoices and the thresholds, each settling on its own. Costs stay on `/api/costs`. |
+| `app/components/project/` | The project's two views' parts: Summary header, tiles and panels; `CostRow`, `LockCodeCard` and the `ViewSwitch` shared with Costs. `TotalsCard.js` now holds only the shared amount formatters. |
+| `app/projects/[code]/` | **Summary** (dashboard, admins) at `/projects/<code>`; **Costs** (workflow, everyone) at `/projects/<code>/costs`. |
+| `lib/useProjectCosts.js`, `lib/useProjectDashboard.js`, `lib/useViewer.js` | A project's costs (load, cache fallback, tick, bulk mark), its Summary reads (dashboard + billing summary), and the viewer's role — shared by both views. |
 | `lib/dates.js` | ISO/serial date conversion and Singapore timestamps. Vercel runs UTC, so timezone is explicit. |
 | `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
 | `lib/session.js` | `localStorage` session with expiry. |
@@ -81,9 +88,22 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **`Categories.E xero_tracking_option` is the one Xero mapping.** Do not add a code→option map in this repo.
 - **A price is only ever filled from a past quote of the same property type, and only into a blank price.** Imported rows (blank `property_type`) are reference only. A quote never suggests or price-checks against its own saved lines. All in `lib/priceMemory.mjs`; keep it there.
 - **The quote editor is exempt from the `LineRow` rule.** It is a grid of inputs, not a list of read-only rows; `LineRow` remains the rule for every list on the other screens.
-- **Only the quote screen is wide.** `AppShell wide` raises the column to 1360px; the line table scrolls inside its own container on a phone. Every other screen stays at 720px.
 - **Row rules live in `lib/quoteEditor.mjs`, not the component.** A new row copies the nearest item's service; a title moves alone; deleting a title keeps its lines; the last row cannot be deleted; prices take at most 2 decimals; fully blank rows are dropped on save.
 - **The quote screen loads with one parallel wave of reads** (`loadQuoteScreen`). Each Sheets call is ~400ms on a good day and several seconds on a bad one, so never chain reads that could run together.
+
+**Project figures (dashboard checkpoint 1)**
+
+- **Every figure on the project screen beyond the cost list comes from `lib/projectFigures.mjs`**, in integer cents. The page computes them on the client from `/api/costs` and `/api/dashboard`, so a cached copy still renders and ages correctly offline. Never total or split costs in a component.
+- **Cost buckets follow `cost_type`, in both ledgers**: `material` → Materials, `labour (external)` → Subcon, `labour (internal)` → Own labour, `transport` → Transport. A receipted row with a blank `cost_type` (everything before 2026-10-15) is Transport for `TRANS`/`VEHIC`, Materials otherwise. Buckets always sum to the grand total.
+- **`labour (external)` is subcon for now.** It is mostly day-paid freelancers. When the Labour log goes live, a freelancer's days must not be costed from both the log and the payment row.
+- **Ongoing vs completed is `Projects.status === 'closed'`.** Ongoing profit is against the quote, so no quote means no profit figure ("No quote"), never a 100% margin. Completed profit is against what was invoiced. Xero unreadable → those figures are null, never computed as if nothing was invoiced.
+- **Quoted = the quote's plus every VO's `contract_sum`, at its live version.** The by-service split spreads any discount across services by largest remainder, so service rows total the quoted figure to the cent. Lines with no category have their own row, so cost rows also total the grand total.
+- **Invoices match a project by Xero `Reference`**: the exact `display_address` first (ignoring case and spacing), then block number + first street word + unit number. A reference fitting two projects is shown as ambiguous and counted nowhere — never guessed. Credit notes subtract from invoiced; applied credit is already out of `AmountDue`.
+- **The Xero invoice read is separate from costs and fails soft.** `/api/dashboard` uses `Promise.allSettled`; a failed part returns `{ error }` and is not written over the last good cached copy. Credit notes that cannot be read are skipped, and the screen says so.
+- **Profit, margin, invoices, flags, the cost split and the by-service table live on the Summary, which is admin-only.** Non-admins and GEN-000 are redirected from `/projects/<code>` to `/costs` once the session is read (`useViewer().ready`) — never before, or an admin is bounced too. On Costs the lock code stays the first card: it is what people on site open the screen for.
+- **"Xero invoices" is not "Invoiced".** The cost list's tick column means a cost was recharged to the client; keep the two words apart on screen.
+- **Thresholds are System config rows** (`TARGET_MARGIN_PCT`, `WATCH_LEVEL_PCT`, `OVER_LEVEL_PCT`, `CHASE_AFTER_DAYS`, `OVERDUE_AFTER_DAYS`), read with the same defaults when absent or blank — never 0.
+- **`Receipted expenses` is read to column T** (`cost_type`, written by `expense-pwa`). Still read-only here.
 
 **Business rules**
 
@@ -117,10 +137,27 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Never cache `/api/auth` or any non-GET request.** A cached identity is a security problem, and cached writes are a correctness one.
 - **Stale data must say it is stale.** The project screen shows how old cached figures are — silently showing out-of-date money is worse than an error.
 
+**Screen types**
+
+Every screen is one of three kinds, and its kind decides its layout. Pick the kind before laying a screen out.
+
+| | Workflow | Dashboard | Editor |
+|---|---|---|---|
+| For | Doing a task on a phone: record, tick, edit, find a code | Reading a state at a desk: is this job OK, what is owed | Building a document: the quote |
+| `AppShell layout` | `workflow` (default, 720px) | `dashboard` (1280px) | `editor` (1360px) |
+| Shape | One column, in task order | Header → `TileGrid` → `Panel`s, stacked in priority order, side by side via `PanelGrid` | A grid of inputs |
+| Lists | `LineRow` | `LineRow` for lists of things; a table (dashboard `table.js` styles) only for figures read across *and* down | Its own grid |
+| Actions | Inline, 44px targets | **None inline.** Every action is a link into a workflow or editor screen | Inline |
+
+- **One job per screen.** An object that is both reported on and edited gets two views of one URL tree (Summary at `/projects/<code>`, Costs at `/projects/<code>/costs`), joined by `ViewSwitch` — not one screen doing both.
+- **Dashboards never edit in place.** A row shown on a dashboard drops its action (`CostRow` without `onToggle`); a panel's action is a `PanelLink` to where the change is made. "Bill next stage" opens the quote screen, which keeps its own confirm and PIN.
+- **Responsive without media queries.** Grids use `repeat(auto-fit, minmax(min(100%, Npx), 1fr))`: tiles fall to two across a phone, panels to one. Panels are written in priority order because that is the order a phone shows them. Never let side-by-side placement carry meaning.
+- **Same components in every kind.** A dashboard is laid out differently, not styled differently: `card`, `Tag`, `LineRow`, `font.size` and the theme colours throughout. The build-spec mock-up's navy palette and IBM Plex are not adopted — only its layout.
+
 **Code**
 
 - JavaScript, not TypeScript. App Router. `@/` alias. Inline styles from `lib/theme.js` — no CSS framework.
-- **List rows go through `app/components/LineRow.js`**, and tags through `Tag.js`. The project screen renders both cost sources through one `CostRow`, so any difference in how a row looks reads as a difference in what it means. Only three things may differ between the two kinds: the word "Receipted" in `meta`, the payee, and whether the label opens the editor. Change spacing or sizing in `LineRow`, once.
+- **List rows go through `app/components/LineRow.js`**, and tags through `Tag.js` (a dashboard table of figures is the one exception — see Screen types). The project screen renders both cost sources through one `CostRow`, so any difference in how a row looks reads as a difference in what it means. Only three things may differ between the two kinds: the word "Receipted" in `meta`, the payee, and whether the label opens the editor. Change spacing or sizing in `LineRow`, once.
 - **A row is tagged with its category CODE, never the joined display name.** `Project costs` joins a name from `Categories` and the Expenses tab stores only the code, so showing the name on one and the code on the other makes one trade look like two. The name survives only as the fallback label for a cost with no description, where "Electrical" beats "ELEC".
 - **A filter control must not look like a `Tag`.** Filters and row tags sit inches apart on the project screen and mean opposite things — a tag is a fact about its row, a chip is a control that changes what you see. They go through `FilterChip`, which is squarer, larger and bordered, reusing the selected-option look of the cost type buttons. When the two looked alike, a row's category tag read as something you could press.
 - **Filtering the cost list must never change a total that describes the whole project.** The totals card stays whole-project; the filtered figure lives in the filter bar where the selection is visible. And the bulk "mark invoiced" button is withheld while a filter is on — it marks the whole project, and a button reading "Mark 27" under a list showing 6 is how someone bills a client for the wrong thing.

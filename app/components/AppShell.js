@@ -9,10 +9,15 @@ import { getUser, clearUser, daysRemaining } from '@/lib/session';
 import { useOnline } from '@/lib/useOnline';
 import { card, color, font, radius, shadow, space } from '@/lib/theme';
 
-// `wide` is for the quote editor only: its line table is a desktop grid that cannot
-// fit the 720px column every other screen uses. On a phone the table scrolls inside
-// its own container, so the page itself still never scrolls sideways.
-export default function AppShell({ title, subtitle, onBack, actions, wide = false, children }) {
+// Three page widths, one per kind of screen (APP_CONTEXT.md, "Screen types"):
+//   workflow  — 720px, the default: doing a task on a phone, one column
+//   dashboard — 1280px: reading a state at a desk; panels collapse to one column on a phone
+//   editor    — 1360px: the quote editor, whose line table is a desktop grid of inputs
+// Whatever the width, a phone never scrolls the page sideways: wide tables scroll inside
+// their own box.
+const MAX_WIDTH = { workflow: 720, dashboard: 1280, editor: 1360 };
+
+export default function AppShell({ title, subtitle, onBack, actions, layout = 'workflow', children }) {
   const [user, setUser]       = useState(null);
   const [ready, setReady]     = useState(false);
   const [menuOpen, setMenu]   = useState(false);
@@ -163,7 +168,7 @@ export default function AppShell({ title, subtitle, onBack, actions, wide = fals
       <main style={{
         padding: `${space.lg}px`,
         paddingBottom: `calc(${space.xxl}px + env(safe-area-inset-bottom))`,
-        maxWidth: wide ? 1360 : 720,
+        maxWidth: MAX_WIDTH[layout] || MAX_WIDTH.workflow,
         margin: '0 auto',
       }}>
         {children}

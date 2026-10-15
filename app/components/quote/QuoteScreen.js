@@ -193,7 +193,7 @@ export default function QuoteScreen({ code, voId }) {
 
   return (
     <AppShell
-      wide
+      layout="editor"
       title={title}
       subtitle={subtitle}
       onBack={() => leaveIfSafe(() => router.push(isVo ? quoteHref : `/projects/${encodeURIComponent(code)}`))}

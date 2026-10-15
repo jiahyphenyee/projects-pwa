@@ -1,6 +1,8 @@
 'use client';
 
-import { card, color, font, space } from '@/lib/theme';
+// Amount formatting shared by every screen. The card this file was named for is gone —
+// the project's cost now shows on its Summary tiles and its Costs view — but the
+// formatters stayed so their many imports did not have to move.
 
 export function formatAmount(n) {
   return (n || 0).toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -13,37 +15,4 @@ export function formatAmount(n) {
  */
 export function formatRowAmount(n) {
   return n === null || n === undefined ? '—' : formatAmount(n);
-}
-
-/**
- * What a project has cost. One figure.
- *
- * It used to break the total down by which system tracked the spend — "not from expense
- * app" against "from expense app". That is a fact about our plumbing, not about the job,
- * and it sat at the top of the screen competing with the number people actually open this
- * page for. The split is still available where it is asked for: the filters over the cost
- * list total whatever subset you select.
- */
-export default function TotalsCard({ totals }) {
-  if (!totals) return null;
-
-  const count = totals.ownCount + totals.receiptedCount;
-
-  return (
-    <section style={{
-      ...card, padding: space.lg, marginBottom: space.lg,
-      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: space.md,
-    }}>
-      <span style={{ fontSize: font.size.md, fontWeight: 600, color: color.text }}>
-        Total project cost
-        <span style={{ color: color.subtle, fontSize: font.size.xs, fontWeight: 400 }}>
-          {' · '}{count} {count === 1 ? 'expense' : 'expenses'}
-        </span>
-      </span>
-      <span style={{
-        fontSize: font.size.xl, fontWeight: 600,
-        fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-      }}>{formatAmount(totals.grandTotal)}</span>
-    </section>
-  );
 }
