@@ -14,6 +14,13 @@ version and date and open a fresh one above.
 ## Unreleased
 
 [Added]
+- Project screen splits cost to date into materials, subcon, own labour and transport, with receipted against non-receipted underneath.
+- Admins see quoted, profit, margin, budget used, invoiced and outstanding on the project screen, with an On track / Watch / Over budget (or Healthy / Below target / Loss once closed) flag.
+- Xero invoices on the project screen, matched to the project by Reference, with collected, outstanding and Paid / Chase / Overdue by age.
+- "By service" table on the project screen: quoted against materials, subcon, transport and total cost per category, adding up to the project totals.
+- A cost with the same amount in the other ledger is marked "possible duplicate" on its row; no total changes.
+- Margin and ageing thresholds in System config (`TARGET_MARGIN_PCT`, `WATCH_LEVEL_PCT`, `OVER_LEVEL_PCT`, `CHASE_AFTER_DAYS`, `OVERDUE_AFTER_DAYS`), added by `scripts/setup-dashboard-config.mjs`.
+- `scripts/check-project.mjs` recomputes a project's figures from the raw Sheet and Xero for hand checks; `scripts/list-mistyped-costs.mjs` lists costs whose type contradicts their description.
 - Receipted expenses can now be marked invoiced, so client-charged spend is tracked in one place instead of only for costs entered here.
 - Filter a project's costs by category (several at once) and by invoiced state, with the number of rows and their total shown against the selection.
 - Optional lock code on a project, set when creating it and editable from the project screen.
@@ -37,6 +44,8 @@ version and date and open a fresh one above.
 - The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
 
 [Changed]
+- A project now has two views: a wide **Summary** dashboard for admins (headline tiles, cost split, by-service table, billing and Xero invoices side by side, latest costs) and the phone-first **Costs** list; everyone else lands on Costs.
+- "Total project cost" is now "Cost to date" in the project summary, and receipted expenses are typed by the expense app's new `cost_type` column (T).
 - A project shows one cost list — receipted expenses sit alongside the rest, newest first, rather than in a separate collapsed section. They still cannot be edited here.
 - "Non-receipted costs" is now "Not from expense app": some migrated costs do have a Xero receipt, just not one this system tracks.
 - Cost rows carry one tag, the category code — the same code on both kinds, so a trade no longer reads as "Electrical" on one row and "ELEC" on the next.

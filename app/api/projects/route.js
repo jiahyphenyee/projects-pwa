@@ -14,7 +14,7 @@ const PROJECT_ID = /^(PRJ-|GEN-)/;
 export async function GET() {
   try {
     const tab  = await projectsTab();
-    const rows = await readTab(tab, 'A:L', PROJECT_ID);
+    const rows = await readTab(tab, 'A:M', PROJECT_ID);
 
     // Sheet order is creation order (rows are appended), so the tail is newest.
     const projects = rows.map(({ row, rowNumber }) => ({
@@ -27,6 +27,7 @@ export async function GET() {
       status:      row[COL.status]      || '',
       closedDate:  row[COL.closedDate]  || '',
       lockCode:    row[COL.lockCode]    || '',
+      propertyType: row[COL.propertyType] || '',
       rowNumber,
     }));
 
