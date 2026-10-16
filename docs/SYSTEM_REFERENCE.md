@@ -159,9 +159,11 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | **QUOTE_UNITS** | pcs, sqft, ft run, lot, room, lumpsum | Unit dropdown |
 | **QUOTE_PROPERTY_TYPES** | HDB, Condo, Commercial | Property type buttons |
 | **STAGE_TRACKING_OPTION** | *(blank)* | Service tracking on stage invoices; blank = untagged |
-| **COMPANY_ADDRESS / COMPANY_PHONE / COMPANY_EMAIL** | *(text)* | Letterhead of the quote PDF. Line breaks in the cell are kept |
+| **COMPANY_PHONE / COMPANY_EMAIL** | *(text)* | Letterhead of the quote PDF |
+| **COMPANY_ADDRESS** | *(text)* | No longer printed on the quote PDF (2026-10-16) |
 | **QUOTE_TERMS** | *(text)* | T&Cs printed at the end of the quote PDF; blank = no T&C section |
-| **QUOTE_VALIDITY_DAYS** | *(number)* | "Valid until" = the quote's date + this many days; blank = not printed |
+| **QUOTE_VALIDITY_DAYS** | *(number)* | "This quotation is valid for N days." printed above the T&Cs; blank = not printed |
+| **QUOTE_FILE_PREFIX** | HFC | **New 2026-10-16.** Start of PDF file names: `HFCQuote_v2_<address>.pdf`, `HFCVO1_<address>.pdf` |
 | **TARGET_MARGIN_PCT** | 35 | **New 2026-10-15.** Gross margin aimed for; budget = quoted × (1 − this). Confirmed by William |
 | **WATCH_LEVEL_PCT / OVER_LEVEL_PCT** | 80 / 100 | Budget used at which an ongoing job turns Watch / above which it is Over budget. Placeholders |
 | **CHASE_AFTER_DAYS / OVERDUE_AFTER_DAYS** | 30 / 60 | Unpaid invoice age after which it shows Chase / Overdue. Placeholders |
@@ -392,12 +394,14 @@ Owned and written by the **Projects PWA** only. All four: header row 1, `ℹ` no
 from row 3, **no checkbox columns** (booleans are the text `TRUE`/`FALSE`). Column maps and
 headers are declared once in `lib/quoteSchema.mjs` and asserted on first use.
 
-**Quotes** (A:V) — `quote_id` (`Q-0001`) · `project_code` · `kind` (`quote` | `vo`) ·
+**Quotes** (A:W) — `quote_id` (`Q-0001`) · `project_code` · `kind` (`quote` | `vo`) ·
 `vo_number` · `property_type` (copied from the project at save) · `show_unit` ·
 `discount_mode` (`$` | `%`) · `discount_value` · `subtotal` · `contract_sum` · `status` ·
 `current_version` · `next_line_no` · `xero_invoice_id` · `xero_invoice_number` ·
 `billed_amount` · `billed_at` · `billed_by` · `created_at` · `created_by` · `updated_at` ·
-`updated_by`. One `quote` per project; VOs numbered per project.
+`updated_by` · `issue_version` (W, blank = 1). One `quote` per project; VOs numbered per project.
+`issue_version` is the client-facing v1, v2… on the quote PDF, raised by hand from the quote
+screen; `current_version` counts every save and is never shown. VOs are not versioned.
 
 **Quote lines** (A:K) — `line_id` (`Q-0001-L7`) · `quote_id` · `version` · `position` ·
 `kind` (`item` | `title`) · `description` · `service` (a `Categories` code) · `qty` · `unit` ·
@@ -443,10 +447,11 @@ Billed state is on the VO's `Quotes` row; `Quotes.status` goes draft → sending
 `status` back to `draft`.
 
 **Quote PDF (Phase 7).** `GET /api/quotes/pdf?quote=<id>` makes the PDF from the saved
-quote or VO: logo (`assets/quote-logo.png`), `COMPANY_NAME`, `COMPANY_UEN`,
-`COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_EMAIL`, client, project, property type, lines
-(titles as headings, no section subtotals), totals with "No GST", "Valid until" from
-`QUOTE_VALIDITY_DAYS`, the payment schedule, and `QUOTE_TERMS`. Blank or `[placeholder]` values are left off. After the first stage of a
+quote or VO: logo top right (`assets/quote-logo.png`) over `COMPANY_NAME`, `COMPANY_UEN`,
+`COMPANY_PHONE`, `COMPANY_EMAIL`; at top left the heading, client, project, version (quote
+only) and date; then lines
+(titles as headings, no section subtotals), totals with "No GST", the payment schedule, "This quotation is valid
+for N days" from `QUOTE_VALIDITY_DAYS`, and `QUOTE_TERMS`. Blank or `[placeholder]` values are left off. After the first stage of a
 quote is billed, the PDF is attached to that invoice and `Payment stages.pdf_attached_at`
 (column O) is stamped; it is never attached twice. `POST /api/quotes/pdf` retries a failed
 attachment, with the PIN.
