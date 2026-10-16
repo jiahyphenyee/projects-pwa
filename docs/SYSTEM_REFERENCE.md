@@ -162,7 +162,7 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | **COMPANY_PHONE / COMPANY_EMAIL** | *(text)* | Letterhead of the quote PDF |
 | **COMPANY_ADDRESS** | *(text)* | No longer printed on the quote PDF (2026-10-16) |
 | **QUOTE_TERMS** | *(text)* | T&Cs printed at the end of the quote PDF; blank = no T&C section |
-| **QUOTE_VALIDITY_DAYS** | *(number)* | "Quote is valid for N days." printed above the T&Cs; blank = not printed |
+| **QUOTE_VALIDITY_DAYS** | *(number)* | "This quotation is valid for N days." printed above the T&Cs; blank = not printed |
 | **QUOTE_FILE_PREFIX** | HFC | **New 2026-10-16.** Start of PDF file names: `HFCQuote_v2_<address>.pdf`, `HFCVO1_<address>.pdf` |
 | **TARGET_MARGIN_PCT** | 35 | **New 2026-10-15.** Gross margin aimed for; budget = quoted × (1 − this). Confirmed by William |
 | **WATCH_LEVEL_PCT / OVER_LEVEL_PCT** | 80 / 100 | Budget used at which an ongoing job turns Watch / above which it is Over budget. Placeholders |
@@ -450,7 +450,7 @@ Billed state is on the VO's `Quotes` row; `Quotes.status` goes draft → sending
 quote or VO: logo top right (`assets/quote-logo.png`) over `COMPANY_NAME`, `COMPANY_UEN`,
 `COMPANY_PHONE`, `COMPANY_EMAIL`; at top left the heading, client, project, version (quote
 only) and date; then lines
-(titles as headings, no section subtotals), totals with "No GST", the payment schedule, "Quote is valid
+(titles as headings, no section subtotals), totals with "No GST", the payment schedule, "This quotation is valid
 for N days" from `QUOTE_VALIDITY_DAYS`, and `QUOTE_TERMS`. Blank or `[placeholder]` values are left off. After the first stage of a
 quote is billed, the PDF is attached to that invoice and `Payment stages.pdf_attached_at`
 (column O) is stamped; it is never attached twice. `POST /api/quotes/pdf` retries a failed
