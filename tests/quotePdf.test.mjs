@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { renderQuotePdf, wrap, printable, formatDate } from '../lib/quotePdf.mjs';
+import { renderQuotePdf, wrap, printable, formatDate, quoteFileName } from '../lib/quotePdf.mjs';
 
 const model = (overrides = {}) => ({
-  heading: 'QUOTATION', number: 'Q-0001', date: '2026-10-07',
-  company: { name: 'Heng Fa Construction Pte Ltd', uen: '201912345A', address: '1 Example Road\nSingapore 123456', phone: '6123 4567', email: 'hello@example.com' },
-  client: 'TEST – Heng Fa internal', project: 'TEST - quote and billing', propertyType: 'HDB',
+  heading: 'QUOTATION', version: 'v2', date: '2026-10-07',
+  company: { name: 'Heng Fa Construction Pte Ltd', uen: '201912345A', phone: '6123 4567', email: 'hello@example.com' },
+  client: 'TEST – Heng Fa internal', project: 'TEST - quote and billing',
   showUnit: true,
   lines: [
     { kind: 'title', description: 'Living room' },
@@ -48,13 +48,27 @@ test('renders a one-page PDF that opens', async () => {
   const bytes = await renderQuotePdf(model());
   const doc = await PDFDocument.load(bytes);
   assert.equal(doc.getPageCount(), 1);
-  assert.equal(doc.getTitle(), 'QUOTATION Q-0001');
+  assert.equal(doc.getTitle(), 'QUOTATION v2');
+});
+
+test('a variation order is named by its VO number alone', async () => {
+  const doc = await PDFDocument.load(await renderQuotePdf(model({ heading: 'VARIATION ORDER VO1', version: '', schedule: null })));
+  assert.equal(doc.getTitle(), 'VARIATION ORDER VO1');
+});
+
+test('file names: HFCQuote_v<n>_<address>, HFCVO<n>_<address>', () => {
+  const address = 'Blk 123 Ang Mo Kio Ave 3 #05-12';
+  assert.equal(quoteFileName({ kind: 'quote', issueVersion: 2, address }), 'HFCQuote_v2_Blk 123 Ang Mo Kio Ave 3 05-12.pdf');
+  assert.equal(quoteFileName({ kind: 'quote', issueVersion: null, address }), 'HFCQuote_v1_Blk 123 Ang Mo Kio Ave 3 05-12.pdf');
+  assert.equal(quoteFileName({ kind: 'vo', voNumber: 3, address }), 'HFCVO3_Blk 123 Ang Mo Kio Ave 3 05-12.pdf');
+  assert.equal(quoteFileName({ kind: 'quote', issueVersion: 1, address: '12 A/B Road: unit "7"' }), 'HFCQuote_v1_12 A-B Road- unit -7-.pdf');
+  assert.equal(quoteFileName({ prefix: 'XYZ', kind: 'quote', issueVersion: 1, address: '' }), 'XYZQuote_v1.pdf');
 });
 
 test('validity prints only when set', async () => {
-  const withIt = await PDFDocument.load(await renderQuotePdf(model({ validUntil: '2026-11-06', validityDays: 30 })));
+  const withIt = await PDFDocument.load(await renderQuotePdf(model({ validityDays: 30 })));
   assert.equal(withIt.getPageCount(), 1);
-  const without = await PDFDocument.load(await renderQuotePdf(model({ validUntil: '' })));
+  const without = await PDFDocument.load(await renderQuotePdf(model({ validityDays: 0 })));
   assert.equal(without.getPageCount(), 1);
 });
 

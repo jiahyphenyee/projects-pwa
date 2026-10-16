@@ -40,6 +40,7 @@ version and date and open a fresh one above.
 - Quote screen at `/projects/<code>/quote`, opened from a project (admins only): insert-anywhere lines, section titles with subtotals, optional units and discount, totals with "No GST", property type per project, save to Sheets and price history. Unit prices show two decimals once entered. Descriptions are a box that grows with the text; Shift + Enter adds a line break.
 - `scripts/link-xero-contacts.mjs` proposes Xero contact pairings and writes confirmed ones to the new `Contacts.xero_contact_id` column (H).
 - `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
+- Quote versions: a Version field on the quote screen that only counts up (+) sets the version printed on the PDF; stored in the new `Quotes.issue_version` column (W).
 
 [Removed]
 - The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
@@ -62,6 +63,9 @@ version and date and open a fresh one above.
 - The totals card shows the project total alone — the split by source, and the invoiced breakdown, were competing with the one figure the screen exists for.
 - Cost types now match the workbook's own dropdown: Material, Internal Labour, External Labour, Transport.
 - The blank client option on the new-project form now reads "No client (under HFC)" — it means company-direct work, not missing data.
+- Quote PDF letterhead: logo in the top right corner, the heading and its facts at the top left, no company address and no property type; a quote shows its version (v1, v2…) instead of the Q-number, and a VO only its VO number.
+- PDF files are named `HFCQuote_v<n>_<address>.pdf` and `HFCVO<n>_<address>.pdf` (prefix from `QUOTE_FILE_PREFIX`).
+- The quote PDF says "Quote is valid for N days." above the T&Cs instead of printing a "Valid until" date.
 
 [Fixed]
 - Project costs were read one column out: amounts appeared as the row's label, every total read 0.00, and invoiced costs showed as unbilled.

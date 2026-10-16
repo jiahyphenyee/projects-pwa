@@ -42,6 +42,7 @@ export default function QuoteScreen({ code, voId }) {
   const [saved, setSaved]       = useState('');      // snapshot of the last loaded/saved state
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
+  const [bumping, setBumping]   = useState(false);   // starting the next client-facing version
   const [error, setError]       = useState('');
   const [notice, setNotice]     = useState('');
 
@@ -177,6 +178,32 @@ export default function QuoteScreen({ code, voId }) {
     }
   }
 
+  /**
+   * Move the quote to its next client-facing version (v1 → v2). Only the version number
+   * changes; edits on screen are kept as they are.
+   */
+  async function startVersion() {
+    const from = data.quote.issueVersion;
+    if (!window.confirm(`Start v${from + 1}? Every PDF downloaded from now on is labelled v${from + 1}. Do this when the client is getting a revised quote.`)) return;
+    setBumping(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/quotes/version', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId: data.quote.id, from }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Could not start a new version');
+      setData(d => ({ ...d, quote: { ...d.quote, issueVersion: result.issueVersion } }));
+      setNotice(`Now on v${result.issueVersion}. The next PDF you download is v${result.issueVersion}.`);
+    } catch (err) {
+      setError(err instanceof TypeError ? 'Offline — the version was not changed.' : err.message);
+    } finally {
+      setBumping(false);
+    }
+  }
+
   const project = data?.project;
   const locked = !!data?.quote?.xeroInvoiceId;   // a billed VO cannot change
   const title = !isVo ? 'Quote and billing'
@@ -223,6 +250,9 @@ export default function QuoteScreen({ code, voId }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: space.lg }}>
               <Fact label="Client" value={project.clientName || 'No client (direct job)'} />
               <Fact label={isVo ? 'Variation order' : 'Quote'} value={data.quote ? `${isVo ? `VO${data.quote.voNumber} · ` : ''}${data.quote.id} · saved ${formatWhen(data.quote.updatedAt)}` : 'Not saved yet'} />
+              {data.quote && !isVo && (
+                <VersionField value={data.quote.issueVersion} onIncrement={startVersion} busy={bumping} disabled={saving || bumping} />
+              )}
             </div>
             {isVo && project.propertyType ? (
               <Fact label="Property type (from the project)" value={project.propertyType} />
@@ -325,7 +355,7 @@ export default function QuoteScreen({ code, voId }) {
                   onClick={e => { if (dirty) { e.preventDefault(); setError('Save first: the PDF is made from the saved quote.'); } }}
                   style={{ ...button.secondary, textAlign: 'center', textDecoration: 'none', opacity: dirty ? 0.6 : 1 }}
                   title={dirty ? 'Save first: the PDF is made from the saved quote' : ''}
-                >Download {isVo ? 'variation order' : 'quote'} PDF</a>
+                >Download {isVo ? 'variation order PDF' : `quote PDF v${data.quote.issueVersion}`}</a>
               )}
               {data.quote && data.pdfGaps?.length > 0 && (
                 <span style={{ fontSize: font.size.xs, color: color.accent }}>
@@ -364,6 +394,36 @@ function Fact({ label, value }) {
     <div>
       <div style={{ fontSize: font.size.xs, color: color.muted }}>{label}</div>
       <div style={{ fontSize: font.size.md, fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * The quote's client-facing version, as a field that only counts up: there is no way to
+ * type a number or step back, because a version a client has seen must never be reused.
+ */
+function VersionField({ value, onIncrement, busy, disabled }) {
+  return (
+    <div>
+      <div style={{ fontSize: font.size.xs, color: color.muted }}>Version</div>
+      <div style={{
+        display: 'inline-flex', height: 40, marginTop: 2, overflow: 'hidden',
+        border: `1px solid ${color.border}`, borderRadius: radius.sm, background: color.surface,
+      }}>
+        <span style={{ minWidth: 48, padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: font.size.md, fontWeight: 600 }}>
+          v{value}
+        </span>
+        <button
+          type="button" onClick={onIncrement} disabled={disabled}
+          aria-label={`Start v${value + 1}`}
+          title={`Start v${value + 1}, for a revised quote going to the client. Saving never changes the version.`}
+          style={{
+            width: 44, border: 'none', borderLeft: `1px solid ${color.border}`, background: color.surface,
+            color: color.text, fontSize: font.size.lg, fontFamily: font.stack,
+            cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
+          }}
+        >{busy ? '…' : '+'}</button>
+      </div>
     </div>
   );
 }
