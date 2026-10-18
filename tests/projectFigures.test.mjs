@@ -60,7 +60,30 @@ test('an empty project splits into zeros with no division by zero', () => {
 });
 
 test('no quote means quoted is null, not 0', () => {
-  assert.deepEqual(quotedValue([]), { hasQuote: false, quoted: null, byService: {} });
+  assert.deepEqual(quotedValue([]), { hasQuote: false, quoted: null, quoteSum: null, additions: 0, omissions: 0, byService: {} });
+});
+
+test('quoted splits into the quote, additions and omissions, and nets to the adjusted sum', () => {
+  const q = quotedValue([
+    { kind: 'quote', contractSum: 10000, lines: [{ kind: 'item', service: 'ELEC', amount: 10000 }] },
+    { kind: 'vo', contractSum: 800.55, lines: [{ kind: 'item', service: 'ELEC', amount: 800.55 }] },
+    { kind: 'vo', contractSum: -500.1, lines: [{ kind: 'item', service: 'CARP', amount: -500.1 }] },
+    { kind: 'vo', contractSum: 0.2, lines: [{ kind: 'item', service: 'PLMB', amount: 0.3 }, { kind: 'item', service: 'PLMB', amount: -0.1 }] },
+  ]);
+  assert.equal(q.quoteSum, 10000);
+  assert.equal(q.additions, 800.75);     // a mixed VO counts by its net
+  assert.equal(q.omissions, 500.1);
+  assert.equal(q.quoted, 10300.65);
+  // An omission comes off its service; the services still total the adjusted sum to the cent
+  assert.equal(q.byService.CARP, -500.1);
+  assert.equal(q.byService.ELEC, 10800.55);
+  const cents = Object.values(q.byService).reduce((a, v) => a + Math.round(v * 100), 0);
+  assert.equal(cents, Math.round(q.quoted * 100));
+});
+
+test('not yet invoiced uses the adjusted quoted sum', () => {
+  const f = projectFigures({ cost: 0, quoted: 10300.65, invoices: { invoiced: 4000, collected: 0, outstanding: 4000 }, status: 'active', settings });
+  assert.equal(f.notYetInvoiced, 6300.65);
 });
 
 test('a discount is spread across services and still totals the contract sum exactly', () => {

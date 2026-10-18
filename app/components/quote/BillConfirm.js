@@ -1,7 +1,8 @@
 'use client';
 
 // The confirm step before an invoice is created: invoice number, client, amount and the
-// exact line Xero will receive, then the PIN. Nothing is sent until Confirm is pressed.
+// exact line(s) Xero will receive — the final payment lists its balance and each VO it
+// settles — then the PIN. Nothing is sent until Confirm is pressed.
 
 import { useEffect, useState } from 'react';
 import { formatAmount } from '@/app/components/TotalsCard';
@@ -116,7 +117,11 @@ export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }
           <div role="status" style={{ padding: `${space.sm}px ${space.md}px`, background: color.successLight, color: color.success, borderRadius: radius.md, fontSize: font.size.sm, fontWeight: 600 }}>
             Invoice {result.invoiceNumber} created in Xero and approved.
             {result.pdf?.attached && <div style={{ fontWeight: 400, marginTop: 4 }}>The quote PDF is attached to it.</div>}
+            {result.settled?.length > 0 && <div style={{ fontWeight: 400, marginTop: 4 }}>{result.settled.length} variation order{result.settled.length === 1 ? '' : 's'} settled on it.</div>}
           </div>
+        )}
+        {result?.billed && result.voWarning && (
+          <div role="alert" style={{ padding: `${space.sm}px ${space.md}px`, background: color.accentLight, color: color.accent, borderRadius: radius.md, fontSize: font.size.sm }}>{result.voWarning}</div>
         )}
         {result?.billed && result.pdf?.error && (
           <div role="alert" style={{ padding: `${space.sm}px ${space.md}px`, background: color.accentLight, color: color.accent, borderRadius: radius.md, fontSize: font.size.sm }}>{result.pdf.error}</div>

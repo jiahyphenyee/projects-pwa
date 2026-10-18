@@ -10,7 +10,9 @@
 //      confirming no app and no formula outside those tabs reads them, and that the bound
 //      Apps Script only names them as lookup keys that a deleted tab can never trigger.
 //   2. Creates the four quote tabs with a header row and an ℹ note row, matching the
-//      Project costs / Receipted expense invoicing shape (data from row 3).
+//      Project costs / Receipted expense invoicing shape (data from row 3). On a tab that
+//      already exists, any header the schema has gained since (e.g. Quotes X–Z:
+//      vo_reason, vo_title, settled_on_stage_id) is appended after the last one.
 //   3. Adds the TAB_* keys and the quote config values to System config.
 //   4. Appends `property_type` to Projects (column M) and `xero_tracking_option` to
 //      Categories (column E), filling the latter from the map the expense app hard-codes

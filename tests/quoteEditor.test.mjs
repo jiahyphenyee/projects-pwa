@@ -67,6 +67,14 @@ test('prices accept at most 2 decimals', () => {
   assert.equal(acceptDecimal('.5', ''), '.5');
 });
 
+test('a minus is accepted only where negatives are allowed (variation order lines)', () => {
+  assert.equal(acceptDecimal('-5', '', 2), '');
+  assert.equal(acceptDecimal('-5', '', 2, { negative: true }), '-5');
+  assert.equal(acceptDecimal('-', '', 2, { negative: true }), '-');
+  assert.equal(acceptDecimal('-12.345', '-12.34', 2, { negative: true }), '-12.34');
+  assert.equal(acceptDecimal('--5', '', 2, { negative: true }), '');
+});
+
 test('save payload drops blank rows and keeps ids', () => {
   const rows = [
     title('Living'), item('a', 'ELEC', { id: 'Q-0001-L2', qty: '4', unitPrice: '88' }),

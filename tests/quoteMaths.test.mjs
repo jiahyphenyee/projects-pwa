@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   round2, lineAmount, subtotal, sectionSubtotals, discountAmount, contractSum,
   quoteTotals, stageAmount, scheduleAmounts, sumAmounts,
+  voTotal, vosToSettle, adjustedContractSum, finalPaymentDue,
 } from '../lib/quoteMaths.mjs';
 
 const item = (qty, unitPrice, id) => ({ id, kind: 'item', qty, unitPrice });
@@ -125,4 +126,56 @@ test('schedule: a billed final payment is fixed too', () => {
 test('sumAmounts has no float drift', () => {
   assert.equal(sumAmounts([0.1, 0.2, 0.3, 0.4]), 1);
   assert.equal(sumAmounts(Array(100).fill(0.01)), 1);
+});
+
+// ── Variation orders on the final invoice ────────────────────────────────────────────
+
+test('a VO total is signed: additions positive, omissions negative, exact to the cent', () => {
+  assert.equal(voTotal([item(2, 400)], '', null), 800);
+  assert.equal(voTotal([item(1, -500)], '', null), -500);
+  assert.equal(voTotal([item(-3, 33.33)], '', null), -99.99);
+  // Mixed: 0.1 + 0.2 − 0.3 is exactly 0, not 5.5e-17
+  assert.equal(voTotal([item(1, 0.1), item(1, 0.2), item(1, -0.3)], '', null), 0);
+  // The discount still applies to a net-positive VO, and the quote itself still floors at 0
+  assert.equal(voTotal([item(1, 1000), item(1, -200)], '%', 10), 720);
+  assert.equal(quoteTotals([item(1, -500)], '', null).contractSum, 0);
+  assert.equal(quoteTotals([item(1, -500)], '', null, { signed: true }).contractSum, -500);
+});
+
+const vo = (contractSum, extra = {}) => ({ contractSum, xeroInvoiceId: '', ...extra });
+
+test('only VOs without an invoice settle on the final; early-billed and settled ones do not', () => {
+  const list = [vo(800), vo(300, { xeroInvoiceId: 'early' }), vo(-500), vo(100, { xeroInvoiceId: 'final', settledOnStageId: 'ST-0005' })];
+  assert.deepEqual(vosToSettle(list).map(v => v.contractSum), [800, -500]);
+});
+
+test('finalPaymentDue adds the unsettled VOs to the balance, to the cent', () => {
+  const due = finalPaymentDue(4000, [vo(800), vo(-500)]);
+  assert.deepEqual({ balance: due.balance, adjustment: due.adjustment, due: due.due, negative: due.negative },
+    { balance: 4000, adjustment: 300, due: 4300, negative: false });
+  // An addition billed early stays off
+  assert.equal(finalPaymentDue(4000, [vo(800, { xeroInvoiceId: 'INV' }), vo(-500)]).due, 3500);
+  // No VOs: the balance alone, unchanged
+  assert.equal(finalPaymentDue(0.09, []).due, 0.09);
+  // Float-prone amounts
+  assert.equal(finalPaymentDue(0.1, [vo(0.2), vo(-0.3)]).due, 0);
+  assert.equal(finalPaymentDue(1014.01, [vo(599.33), vo(-98.33)]).due, 1515.01);
+});
+
+test('stages + final due + early-billed VOs = adjusted contract sum', () => {
+  const contract = 999.99;
+  const vos = [vo(800.55), vo(-123.45), vo(300, { xeroInvoiceId: 'early' })];
+  const s = scheduleAmounts(contract, [{ sharePct: 33.33 }, { sharePct: 33.33 }, { sharePct: 33.33 }]);
+  const due = finalPaymentDue(s.finalAmount, vos);
+  const early = vos.filter(v => v.xeroInvoiceId).map(v => v.contractSum);
+  assert.equal(adjustedContractSum(contract, vos), 1977.09);
+  assert.equal(sumAmounts([...s.amounts, due.due, ...early]), adjustedContractSum(contract, vos));
+});
+
+test('the final is blocked when omissions outweigh the balance, or the balance is already negative', () => {
+  assert.equal(finalPaymentDue(400, [vo(-500)]).negative, true);
+  assert.equal(finalPaymentDue(400, [vo(-500)]).due, -100);
+  assert.equal(finalPaymentDue(-100, [vo(800)]).negative, true);     // billed more than the contract sum
+  assert.equal(finalPaymentDue(500, [vo(-500)]).negative, false);    // exactly $0: not negative, but $0 is blocked elsewhere
+  assert.equal(finalPaymentDue(500, [vo(-500)]).due, 0);
 });

@@ -55,3 +55,27 @@ test('an empty or zero VO is refused, and so is one with no contact', () => {
   assert.throws(() => buildVoInvoice({ ...base, lines: [{ kind: 'title', description: 'x' }] }));
   assert.throws(() => buildVoInvoice({ ...base, contactId: '' }));
 });
+
+test('a mixed VO with a positive net still bills early, with its negative line as typed', () => {
+  const mixed = [
+    { kind: 'item', description: 'Extra 13A socket', service: 'ELEC', qty: 2, unit: 'pcs', unitPrice: 88 },
+    { kind: 'item', description: 'Omit one downlight', service: 'ELEC', qty: -1, unit: 'pcs', unitPrice: 45 },
+  ];
+  const { invoice, total, contractSum } = buildVoInvoice({ ...base, lines: mixed });
+  assert.equal(total, 131);
+  assert.equal(contractSum, 131);
+  assert.deepEqual(invoice.LineItems[2], {
+    Description: 'Omit one downlight (per pcs)', Quantity: -1, UnitAmount: 45, AccountCode: '200',
+    Tracking: [{ Name: 'Service', Option: 'Electrical' }],
+  });
+});
+
+test('a VO netting to zero or less is refused on its own: it settles on the final invoice', () => {
+  const omission = [{ kind: 'item', description: 'Omit feature wall', service: 'CARP', qty: 1, unit: '', unitPrice: -500 }];
+  assert.throws(() => buildVoInvoice({ ...base, lines: omission }), /settles on the final invoice/);
+  const zero = [
+    { kind: 'item', description: 'Add', service: '', qty: 1, unit: '', unitPrice: 100 },
+    { kind: 'item', description: 'Omit', service: '', qty: 1, unit: '', unitPrice: -100 },
+  ];
+  assert.throws(() => buildVoInvoice({ ...base, lines: zero }));
+});

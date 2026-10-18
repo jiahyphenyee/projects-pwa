@@ -7,10 +7,16 @@ import StatTile from '@/app/components/dashboard/StatTile';
 import { TileGrid } from '@/app/components/dashboard/Grid';
 import { money, percent } from './format';
 
-export default function SummaryTiles({ cost, figures, quoteError, invoicesError }) {
+/** `quote` is /api/dashboard's quotedValue(): the quote, additions and omissions behind `figures.quoted`. */
+export default function SummaryTiles({ cost, figures, quote, quoteError, invoicesError }) {
   const f = figures;
   const hasQuote = f && f.quoted !== null;
   const loading = !f;
+  // "Quote $10,000 + $800 − $500" when there are VOs; the tile's value is the adjusted sum
+  const hasVos = quote && (quote.additions > 0 || quote.omissions > 0);
+  const quotedNote = hasVos
+    ? `Quote ${money(quote.quoteSum)}${quote.additions > 0 ? ` + ${money(quote.additions)}` : ''}${quote.omissions > 0 ? ` − ${money(quote.omissions)}` : ''}`
+    : 'Quote plus variation orders';
 
   return (
     <TileGrid>
@@ -18,7 +24,7 @@ export default function SummaryTiles({ cost, figures, quoteError, invoicesError 
         label="Quoted"
         value={loading ? '…' : hasQuote ? money(f.quoted) : 'No quote'}
         muted={!hasQuote}
-        note={quoteError ? 'Could not load the quote' : hasQuote ? 'Quote plus variation orders' : 'Write one to track budget'}
+        note={quoteError ? 'Could not load the quote' : hasQuote ? quotedNote : 'Write one to track budget'}
       />
       <StatTile label="Cost to date" value={money(cost)} note="Materials, subcon, own labour, transport" />
       <StatTile

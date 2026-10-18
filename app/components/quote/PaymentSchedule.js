@@ -1,11 +1,14 @@
 'use client';
 
 // The payment schedule card. Shares are edited here and saved with the quote; each stage is
-// billed on its own with "Bill now". Amounts come from lib/quoteMaths.mjs scheduleAmounts,
-// the same function the server bills with, so what is shown is what is invoiced.
+// billed on its own with "Bill now". Amounts come from lib/quoteMaths.mjs scheduleAmounts
+// and finalPaymentDue, the same functions the server bills with, so what is shown is what
+// is invoiced. The final row shows its balance of the contract sum, then one line per
+// variation order it settles (additions and omissions), then the total due.
 
 import { useState } from 'react';
-import { scheduleAmounts } from '@/lib/quoteMaths.mjs';
+import { scheduleAmounts, finalPaymentDue } from '@/lib/quoteMaths.mjs';
+import { voSettlementDescription } from '@/lib/stageInvoice.mjs';
 import { acceptDecimal } from '@/lib/quoteEditor.mjs';
 import { formatAmount } from '@/app/components/TotalsCard';
 import { card, color, font, radius, space } from '@/lib/theme';
@@ -28,6 +31,8 @@ export function fromServerStages(stages) {
     sharePct: s.isFinal || s.sharePct === null || s.sharePct === undefined ? '' : String(s.sharePct),
     billed: !!s.xeroInvoiceId, billedAmount: s.billedAmount, xeroInvoiceNumber: s.xeroInvoiceNumber || '',
     xeroSyncStatus: s.xeroSyncStatus || '', billedAt: s.billedAt || '', pdfAttachedAt: s.pdfAttachedAt || '',
+    // A billed final payment keeps the VO lines it carried; an unbilled one computes them live
+    balance: s.balance, settling: s.settling || [],
   }));
 }
 
@@ -37,8 +42,12 @@ export function defaultStages() {
     .concat([{ key: stageKey(), id: '', name: 'Final payment (balance)', sharePct: '', isFinal: true, billed: false }]);
 }
 
-/** Amounts and flags for the rows as they stand, unsaved edits included. */
-export function computeSchedule(rows, contractSum) {
+/**
+ * Amounts and flags for the rows as they stand, unsaved edits included. `vos` are the
+ * project's saved variation orders: those without an invoice go onto the final payment.
+ * Returns the final's { balance, settling, due } as `final`.
+ */
+export function computeSchedule(rows, contractSum, vos = []) {
   const others = rows.filter(r => !r.isFinal);
   const final = rows.find(r => r.isFinal);
   const s = scheduleAmounts(
@@ -47,12 +56,23 @@ export function computeSchedule(rows, contractSum) {
     final?.billed ? final.billedAmount : null,
   );
   const amounts = new Map(others.map((r, i) => [r.key, s.amounts[i]]));
-  if (final) amounts.set(final.key, s.finalAmount);
-  return { ...s, amounts };
+  let finalNegative = s.finalNegative;
+  let detail = null;
+  if (final) {
+    if (final.billed) {
+      detail = { balance: final.balance ?? s.finalAmount, settling: final.settling || [], due: s.finalAmount };
+    } else {
+      const due = finalPaymentDue(s.finalAmount, vos);
+      detail = { balance: due.balance, settling: due.vos, due: due.due };
+      finalNegative = due.negative;
+    }
+    amounts.set(final.key, detail.due);
+  }
+  return { ...s, finalNegative, amounts, final: detail };
 }
 
-export default function PaymentSchedule({ rows, onChange, contractSum, dirty, saved, onBill, disabled, quoteId, onAttached }) {
-  const s = computeSchedule(rows, contractSum);
+export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached }) {
+  const s = computeSchedule(rows, contractSum, vos);
   const nextKey = rows.find(r => !r.billed && (s.amounts.get(r.key) || 0) > 0)?.key;
   const set = (key, change) => onChange(rows.map(r => (r.key === key ? { ...r, ...change } : r)));
 
@@ -69,7 +89,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
   const globalBlock = !saved ? 'Save the quote before billing.'
     : dirty ? 'Save your changes before billing.'
     : s.overAllocated ? 'The stages add up to more than 100%.'
-    : s.finalNegative ? 'The contract sum is less than what has already been billed.'
+    : s.finalNegative ? (s.final?.balance >= 0 ? 'The omissions come to more than what is left to bill.' : 'The contract sum is less than what has already been billed.')
     : '';
 
   return (
@@ -93,7 +113,20 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
                 padding: `${space.sm}px ${space.lg}px`, borderTop: `1px solid ${color.border}`,
                 background: r.isFinal ? '#F7F8F9' : color.surface,
               }}>
-                {r.isFinal || r.billed ? (
+                {r.isFinal ? (
+                  <div style={{ paddingLeft: 10, minWidth: 0 }}>
+                    <div style={{ fontSize: font.size.sm, fontWeight: 600 }}>{r.name}</div>
+                    {s.final?.settling.length > 0 && (
+                      <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, fontSize: font.size.xs, color: color.muted }}>
+                        <FinalLine label="Balance of contract sum" amount={s.final.balance} />
+                        {s.final.settling.map(vo => (
+                          <FinalLine key={vo.id} label={voSettlementDescription(vo)} amount={vo.contractSum} />
+                        ))}
+                        <FinalLine label="Total due" amount={s.final.due} strong />
+                      </div>
+                    )}
+                  </div>
+                ) : r.billed ? (
                   <div style={{ fontSize: font.size.sm, fontWeight: 600, paddingLeft: 10 }}>{r.name}</div>
                 ) : (
                   <input value={r.name} disabled={disabled} aria-label="Stage name" style={field}
@@ -111,7 +144,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
                     <span style={{ fontSize: font.size.sm, color: color.muted }}>%</span>
                   </div>
                 )}
-                <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600, color: amount < 0 ? color.danger : color.text }}>
+                <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600, color: amount < 0 ? color.danger : color.text, alignSelf: 'start', lineHeight: '38px' }}>
                   {formatAmount(amount)}
                 </div>
                 <div>
@@ -151,7 +184,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
           <button type="button" className="qe-btn" disabled={disabled} onClick={addStage}
             style={{ height: 40, padding: '0 14px', borderRadius: radius.sm, border: `1px dashed ${color.subtle}`, background: color.surface, fontWeight: 600, fontSize: font.size.sm, fontFamily: font.stack, cursor: 'pointer', color: color.text }}
           >+ Add stage</button>
-          <span style={{ fontSize: font.size.xs, color: color.muted }}>Shares total {formatPct(s.sharesTotal)}; the final payment takes the rest.</span>
+          <span style={{ fontSize: font.size.xs, color: color.muted }}>Shares total {formatPct(s.sharesTotal)}; the final payment takes the rest, plus any variation orders not billed early.</span>
         </div>
         {s.overAllocated && (
           <div role="alert" style={{ padding: `${space.sm}px ${space.md}px`, background: color.dangerLight, color: color.danger, borderRadius: radius.md, fontSize: font.size.xs }}>
@@ -160,7 +193,9 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
         )}
         {!s.overAllocated && s.finalNegative && (
           <div role="alert" style={{ padding: `${space.sm}px ${space.md}px`, background: color.dangerLight, color: color.danger, borderRadius: radius.md, fontSize: font.size.xs }}>
-            The contract sum is now less than what has already been billed, so the final payment is negative. Billing is off until the quote is fixed.
+            {s.final?.balance >= 0
+              ? 'The omissions come to more than what is left to bill, so the final invoice would be negative. Xero refuses that. Billing is off until the quote or a variation order is fixed.'
+              : 'The contract sum is now less than what has already been billed, so the final payment is negative. Billing is off until the quote is fixed.'}
           </div>
         )}
         {rows.some(r => r.billed) && !rows.some(r => r.pdfAttachedAt) && (
@@ -175,6 +210,17 @@ export default function PaymentSchedule({ rows, onChange, contractSum, dirty, sa
           <span style={{ fontSize: font.size.xs, color: color.accent }}>{globalBlock}</span>
         )}
       </div>
+    </div>
+  );
+}
+
+/** One line of the final payment's make-up: the balance, a VO, or the total due. */
+function FinalLine({ label, amount, strong = false }) {
+  const neg = amount < 0;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: space.md, fontWeight: strong ? 600 : 400, color: strong ? color.text : color.muted }}>
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ whiteSpace: 'nowrap', color: neg ? color.danger : undefined }}>{neg ? `−${formatAmount(-amount)}` : formatAmount(amount)}</span>
     </div>
   );
 }
