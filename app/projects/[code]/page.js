@@ -114,6 +114,7 @@ export default function ProjectSummaryPage({ params }) {
           <SummaryTiles
             cost={split.total}
             figures={loading ? null : figures}
+            quote={dash.quote}
             quoteError={dash.quoteError}
             invoicesError={dash.invoices?.error || null}
           />

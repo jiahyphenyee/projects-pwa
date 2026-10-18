@@ -39,6 +39,8 @@ export default function QuoteScreen({ code, voId }) {
   const [discount, setDiscount] = useState(NO_DISCOUNT);
   const [propertyType, setType] = useState('');
   const [stages, setStages]     = useState([]);
+  const [voTitle, setVoTitle]   = useState('');      // VO only: its line on the final invoice
+  const [voReason, setVoReason] = useState('');      // VO only: extra work / omitted / changed / goodwill
   const [billing, setBilling]   = useState(null);    // { stage } or { vo: true }: the confirm step open
   const [saved, setSaved]       = useState('');      // snapshot of the last loaded/saved state
   const [loading, setLoading]   = useState(true);
@@ -65,8 +67,8 @@ export default function QuoteScreen({ code, voId }) {
   );
 
   const current = useCallback(
-    () => snapshot(rows, { u: showUnit, d: discount.on ? [discount.mode, discount.value] : null, t: propertyType, s: stageShape(stages) }),
-    [rows, showUnit, discount, propertyType, stages]
+    () => snapshot(rows, { u: showUnit, d: discount.on ? [discount.mode, discount.value] : null, t: propertyType, s: stageShape(stages), v: [voTitle, voReason] }),
+    [rows, showUnit, discount, propertyType, stages, voTitle, voReason]
   );
   const dirty = !!data && current() !== saved;
 
@@ -82,13 +84,16 @@ export default function QuoteScreen({ code, voId }) {
       : NO_DISCOUNT;
     const nextType = payload.project?.propertyType || '';
     const nextStages = payload.schedule?.stages?.length ? fromServerStages(payload.schedule.stages) : defaultStages();
+    const nextVo = [q?.voTitle || '', q?.voReason || ''];
     setData(payload);
     setStages(nextStages);
     setRows(nextRows);
     setShowUnit(nextUnit);
     setDiscount(nextDiscount);
     setType(nextType);
-    setSaved(snapshot(nextRows, { u: nextUnit, d: nextDiscount.on ? [nextDiscount.mode, nextDiscount.value] : null, t: nextType, s: stageShape(nextStages) }));
+    setVoTitle(nextVo[0]);
+    setVoReason(nextVo[1]);
+    setSaved(snapshot(nextRows, { u: nextUnit, d: nextDiscount.on ? [nextDiscount.mode, nextDiscount.value] : null, t: nextType, s: stageShape(nextStages), v: nextVo }));
   }, []);
 
   const load = useCallback(async () => {
@@ -125,13 +130,15 @@ export default function QuoteScreen({ code, voId }) {
     go();
   }
 
+  // A VO's total keeps its sign: negative lines are an omission that comes off the final invoice
   const totals = useMemo(
     () => quoteTotals(
       rows.map(r => ({ kind: r.kind, qty: qtyOf(r), unitPrice: priceOf(r) })),
       discount.on ? discount.mode : '',
-      discount.on ? discount.value : null
+      discount.on ? discount.value : null,
+      { signed: isVo }
     ),
-    [rows, discount]
+    [rows, discount, isVo]
   );
 
   async function save() {
@@ -156,6 +163,8 @@ export default function QuoteScreen({ code, voId }) {
           showUnit,
           discountMode:  discount.on ? discount.mode : '',
           discountValue: discount.on && discount.value !== '' ? Number(discount.value) : null,
+          voTitle:       isVo ? voTitle.trim() : undefined,
+          voReason:      isVo ? voReason : undefined,
           stages:        isVo ? undefined : stages.map(st => ({
             id: st.id || undefined, name: st.name.trim(), isFinal: st.isFinal,
             sharePct: st.isFinal || st.sharePct === '' ? null : Number(st.sharePct),
@@ -283,7 +292,7 @@ export default function QuoteScreen({ code, voId }) {
 
           {locked && (
             <div style={{ padding: `${space.sm}px ${space.md}px`, background: color.successLight, color: color.success, borderRadius: radius.md, fontSize: font.size.sm, fontWeight: 600 }}>
-              Billed as {data.quote.xeroInvoiceNumber} on {formatWhen(data.quote.billedAt)}{data.quote.billedBy ? ` by ${data.quote.billedBy}` : ''}. It can no longer be changed; void it in Xero first if it is wrong.
+              {data.quote.settledOnStageId ? 'Settled on the final payment invoice' : 'Billed as'} {data.quote.xeroInvoiceNumber} on {formatWhen(data.quote.billedAt)}{data.quote.billedBy ? ` by ${data.quote.billedBy}` : ''}. It can no longer be changed; void it in Xero first if it is wrong.
             </div>
           )}
 
@@ -312,20 +321,23 @@ export default function QuoteScreen({ code, voId }) {
             rows={rows} onChange={setRows} showUnit={showUnit} onShowUnit={setShowUnit}
             categories={data.categories} units={data.units}
             defaultService={defaultService} disabled={saving || locked}
-            memory={memory} propertyType={propertyType}
+            memory={memory} propertyType={propertyType} allowNegative={isVo}
           />
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: space.xl, alignItems: 'flex-start' }}>
             <div style={{ flex: '1 1 520px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: space.lg }}>
               {isVo ? (
                 <VoBillCard
-                  vo={data.quote} contractSum={totals.contractSum} dirty={dirty} disabled={saving}
+                  vo={data.quote} contractSum={totals.contractSum} dirty={dirty} disabled={saving} locked={locked}
+                  title={voTitle} reason={voReason} onTitle={setVoTitle} onReason={setVoReason}
+                  finalBilled={!!data.finalBilled}
                   onBill={() => setBilling({ vo: true })}
                 />
               ) : (
                 <>
                   <PaymentSchedule
                     rows={stages} onChange={setStages} contractSum={totals.contractSum}
+                    vos={data.variationOrders || []}
                     dirty={dirty} saved={!!data.quote} disabled={saving}
                     onBill={st => setBilling({ stage: st })}
                     quoteId={data.quote?.id} onAttached={() => load()}
@@ -334,7 +346,7 @@ export default function QuoteScreen({ code, voId }) {
                     vos={data.variationOrders || []}
                     onOpen={id => leaveIfSafe(() => router.push(`${quoteHref}/vo/${encodeURIComponent(id)}`))}
                     onNew={() => leaveIfSafe(() => router.push(`${quoteHref}/vo/new`))}
-                    canAdd={!!data.quote}
+                    canAdd={!!data.quote} finalBilled={!!data.finalBilled}
                   />
                 </>
               )}

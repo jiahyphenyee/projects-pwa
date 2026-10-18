@@ -449,3 +449,27 @@ name in column A, never by row number, so rows can be inserted or moved freely.
 
 **Testing.** `XERO_DRY_RUN` defaults to dry-run when unset. Dry-run invoice IDs must be
 clearly fake and never leave a stage looking billed in live data.
+
+**Variation orders settle on the final invoice** (JY, 2026-10-19). Overrides "billed in
+full as its own invoice" in the Variation orders section.
+- A VO's lines may be negative. An omission is a VO with negative lines; its contract sum
+  is signed. The main quote still never goes below zero.
+- Every VO goes onto the final payment invoice by default, one line each after the balance
+  line: "Add: VO1 – <title>" or "Less: VO2 – <title>", quantity 1, the VO's signed total,
+  no Service tracking. The title is a new optional field and falls back to the first item's
+  description. Final payment due = (contract sum − other stages) + Σ the VOs still to
+  settle; the percentage maths of the stages is unchanged.
+- An addition (net > 0) can still be billed early with "Bill now", as its own invoice with
+  every line, and then stays off the final. An omission or a VO netting to $0 cannot be
+  billed on its own.
+- When the final is billed, each VO on it is recorded as billed by that invoice
+  (`xero_invoice_*`, `billed_*`, `settled_on_stage_id`) and is locked like an early-billed
+  one.
+- Guards: the final invoice total must be above $0 (Xero refuses a negative total; the
+  `finalNegative` blocker now covers omissions); a VO cannot be saved while the final
+  invoice is in flight; once the final invoice is issued a new omission VO is refused with
+  "The final invoice is already issued. Adjust this in Xero by hand." — a new addition is
+  still billed with "Bill now". No credit notes for now.
+- Each VO carries a reason: extra work / omitted / changed / goodwill, shown in the list.
+- The project screen's quoted figure is quote + additions − omissions; "not yet invoiced"
+  uses that adjusted sum.

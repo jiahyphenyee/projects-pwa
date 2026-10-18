@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { invoicePrefix, nextInvoiceNumber, addDays } from '../lib/invoiceNumbers.mjs';
-import { stageLineDescription, buildStageInvoice, matchesStageInvoice } from '../lib/stageInvoice.mjs';
+import { stageLineDescription, voSettlementDescription, buildStageInvoice, matchesStageInvoice } from '../lib/stageInvoice.mjs';
 
 test('prefix uses a two-digit year', () => {
   assert.equal(invoicePrefix('2026-10-07'), 'INV-261007');
@@ -79,4 +79,58 @@ test('an invoice found in Xero is adopted only if it is this stage\'s', () => {
   assert.equal(matchesStageInvoice({ ...found, Contact: { ContactID: 'c-2' } }, want), false);
   assert.equal(matchesStageInvoice({ ...found, Status: 'VOIDED' }, want), false);
   assert.equal(matchesStageInvoice(null, want), false);
+});
+
+// ── The final invoice with variation orders ──────────────────────────────────────────
+
+test('a VO line reads Add or Less, with its number and title', () => {
+  assert.equal(voSettlementDescription({ voNumber: 1, title: 'Extra socket points', contractSum: 800 }), 'Add: VO1 – Extra socket points');
+  assert.equal(voSettlementDescription({ voNumber: 2, title: 'Omit feature wall', contractSum: -500 }), 'Less: VO2 – Omit feature wall');
+  assert.equal(voSettlementDescription({ voNumber: 3, title: '', contractSum: 0 }), 'Add: VO3');
+});
+
+const final = {
+  ...base,
+  stage: {
+    name: 'Final payment (balance)', isFinal: true, amount: 4300, balance: 4000,
+    settling: [
+      { id: 'Q-0002', voNumber: 1, title: 'Extra socket points', contractSum: 800 },
+      { id: 'Q-0003', voNumber: 2, title: 'Omit feature wall', contractSum: -500 },
+    ],
+  },
+  contractSum: 5070,
+};
+
+test('the final invoice carries the balance and one signed line per VO, adding up to the total due', () => {
+  const inv = buildStageInvoice(final);
+  assert.deepEqual(inv.LineItems, [
+    { Description: 'Final payment (balance), balance of contract sum $5,070.00', Quantity: 1, UnitAmount: 4000, AccountCode: '200' },
+    { Description: 'Add: VO1 – Extra socket points', Quantity: 1, UnitAmount: 800, AccountCode: '200' },
+    { Description: 'Less: VO2 – Omit feature wall', Quantity: 1, UnitAmount: -500, AccountCode: '200' },
+  ]);
+  assert.equal(inv.LineItems.reduce((a, l) => a + Math.round(l.UnitAmount * 100), 0), 430000);
+  // Summary lines carry no Service tracking, even when the stage line does
+  const tracked = buildStageInvoice({ ...final, trackingOption: 'General' });
+  assert.deepEqual(tracked.LineItems[0].Tracking, [{ Name: 'Service', Option: 'General' }]);
+  assert.equal(tracked.LineItems[1].Tracking, undefined);
+});
+
+test('an early-billed VO is left off: the caller passes only the VOs to settle, and the lines must still add up', () => {
+  const without = { ...final.stage, amount: 3500, settling: final.stage.settling.filter(v => v.contractSum < 0) };
+  const inv = buildStageInvoice({ ...final, stage: without });
+  assert.equal(inv.LineItems.length, 2);
+  assert.equal(inv.LineItems[1].UnitAmount, -500);
+  // A stale amount (the VO changed since the preview) is refused rather than sent
+  assert.throws(() => buildStageInvoice({ ...final, stage: { ...final.stage, amount: 4200 } }), /add up to \$4,300\.00/);
+});
+
+test('a final invoice with no VOs is the one-line invoice it always was, and a non-positive total is refused', () => {
+  const plain = buildStageInvoice({ ...final, stage: { name: 'Final payment (balance)', isFinal: true, amount: 4000, balance: 4000, settling: [] } });
+  assert.equal(plain.LineItems.length, 1);
+  assert.equal(plain.LineItems[0].UnitAmount, 4000);
+  assert.throws(() => buildStageInvoice({ ...final, stage: { ...final.stage, amount: 0, balance: 500, settling: [{ voNumber: 1, title: '', contractSum: -500 }] } }));
+  // The adopt-on-retry check compares the new total, VOs included
+  const found = { Contact: { ContactID: 'c-1' }, Total: 4300, Reference: '12 Example Road', Status: 'AUTHORISED' };
+  assert.equal(matchesStageInvoice(found, { contactId: 'c-1', amount: 4300, reference: '12 Example Road' }), true);
+  assert.equal(matchesStageInvoice(found, { contactId: 'c-1', amount: 4000, reference: '12 Example Road' }), false);
 });

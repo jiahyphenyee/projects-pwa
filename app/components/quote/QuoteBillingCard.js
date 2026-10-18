@@ -2,8 +2,9 @@
 
 // The Summary's view of quote and billing: every payment stage and variation order with
 // its amount and whether it has been billed, so what is still to invoice is visible
-// without opening the quote. Rows go through LineRow like every other list. Billing
-// itself happens on the quote screen, which the panel links to.
+// without opening the quote. A VO waiting for the final invoice says so; its amount is
+// already inside the final payment's. Rows go through LineRow like every other list.
+// Billing itself happens on the quote screen, which the panel links to.
 
 import LineRow from '@/app/components/LineRow';
 import Tag from '@/app/components/Tag';
@@ -34,9 +35,9 @@ export default function QuoteBillingCard({ projectCode, summary }) {
           key={`${item.kind}-${i}`}
           first={i === 0}
           label={item.label}
-          amount={`$${formatAmount(item.amount)}`}
-          meta={item.billed ? item.number : ''}
-          tags={<Tag variant={item.billed ? 'invoiced' : 'notInvoiced'}>{item.billed ? 'Billed' : 'Not billed'}</Tag>}
+          amount={item.amount < 0 ? `−$${formatAmount(-item.amount)}` : `$${formatAmount(item.amount)}`}
+          meta={item.billed ? item.number : item.onFinal ? 'Included in the final payment' : ''}
+          tags={<Tag variant={item.billed ? 'invoiced' : item.onFinal ? 'neutral' : 'notInvoiced'}>{item.billed ? 'Billed' : item.onFinal ? 'On final invoice' : 'Not billed'}</Tag>}
         />
       ))}
     </Panel>

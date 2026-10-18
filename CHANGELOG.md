@@ -42,11 +42,14 @@ version and date and open a fresh one above.
 - `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
 - Quote versions: a Version field on the quote screen that only counts up (+) sets the version printed on the PDF; stored in the new `Quotes.issue_version` column (W).
 - `office` role: costs in both ledgers, quotes, VOs and billing, and a project **Billing** view (quote and Xero invoices), but no Summary.
+- A variation order can omit work: negative quantities or prices on VO lines only, with a title and a reason (extra work / omitted / changed / goodwill) shown in the VO list; new `Quotes` columns `vo_reason`, `vo_title`, `settled_on_stage_id` (X–Z), appended by `scripts/setup-quote-billing-tabs.mjs`.
+- The Summary's Quoted tile shows quote + additions − omissions, and "not yet invoiced" uses the adjusted sum.
 
 [Removed]
 - The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
 
 [Changed]
+- Variation orders now settle on the final payment invoice by default, one "Add:" or "Less:" line each after the balance line; an addition can still be billed early with "Bill now" and then stays off the final, an omission cannot be billed on its own, and a new omission is refused once the final invoice is issued.
 - A project now has two views: a wide **Summary** dashboard for admins (headline tiles, cost split, by-service table, billing and Xero invoices side by side, latest costs) and the phone-first **Costs** list; everyone else lands on Costs.
 - "Total project cost" is now "Cost to date" in the project summary, and receipted expenses are typed by the expense app's new `cost_type` column (T).
 - A project shows one cost list — receipted expenses sit alongside the rest, newest first, rather than in a separate collapsed section. They still cannot be edited here.
@@ -70,6 +73,7 @@ version and date and open a fresh one above.
 - Only `admin`, `boss_man` and `office` PINs can sign in; any other role is refused at login, and billing re-checks the PIN's role on the server.
 
 [Fixed]
+- The project dashboard no longer runs into the Google Sheets read quota: the Xero client keeps its access token in memory instead of re-reading System config on every Xero call.
 - Project costs were read one column out: amounts appeared as the row's label, every total read 0.00, and invoiced costs showed as unbilled.
 - Adding, editing and ticking a cost work again — every write to `Project costs` was landing past the last column and being rejected.
 - A failure on the project screen no longer blames the network when the server was reachable.

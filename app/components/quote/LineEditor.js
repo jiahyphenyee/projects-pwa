@@ -57,9 +57,12 @@ const DOWN = ['M12 5v14', 'M6 13l6 6 6-6'];
 const BIN = ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'];
 const COPY = ['M9 9h11v11H9z', 'M5 15V5a1 1 0 0 1 1-1h10'];
 
+// `allowNegative`: variation orders only — an omission is a negative quantity or price.
 export default function LineEditor({
   rows, onChange, showUnit, onShowUnit, categories, units, defaultService, disabled, memory, propertyType,
+  allowNegative = false,
 }) {
+  const sign = { negative: allowNegative };
   const inputs = useRef(new Map());
   const pendingFocus = useRef(null);
   const [focused, setFocused] = useState(null);   // the row whose suggestions may show
@@ -193,7 +196,7 @@ export default function LineEditor({
                   </select>
                   <input
                     value={row.qty} disabled={disabled} inputMode="decimal" aria-label="Quantity"
-                    onChange={e => set({ qty: acceptDecimal(e.target.value, row.qty) })}
+                    onChange={e => set({ qty: acceptDecimal(e.target.value, row.qty, 2, sign) })}
                     style={{ ...field, textAlign: 'right' }}
                   />
                   {showUnit && (
@@ -209,11 +212,11 @@ export default function LineEditor({
                   <input
                     value={row.unitPrice} disabled={disabled} inputMode="decimal" aria-label="Unit price"
                     placeholder="0.00"
-                    onChange={e => set({ unitPrice: acceptDecimal(e.target.value, row.unitPrice) })}
+                    onChange={e => set({ unitPrice: acceptDecimal(e.target.value, row.unitPrice, 2, sign) })}
                     onBlur={() => { const f = formatPrice(row.unitPrice); if (f !== row.unitPrice) set({ unitPrice: f }); }}
                     style={{ ...field, textAlign: 'right' }}
                   />
-                  <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600, lineHeight: '38px' }}>
+                  <div style={{ textAlign: 'right', fontSize: font.size.sm, fontWeight: 600, lineHeight: '38px', color: lineAmount(qtyOf(row), priceOf(row)) < 0 ? color.danger : color.text }}>
                     {formatAmount(lineAmount(qtyOf(row), priceOf(row)))}
                   </div>
                   <div style={{ display: 'flex', gap: space.xs }}>
