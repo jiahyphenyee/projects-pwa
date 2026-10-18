@@ -1,8 +1,11 @@
 // PIN login. Users live in the workbook's System config tab as:
 //   PWA_USER_1 = "<name>|<4-digit PIN>|<role>"
+// The same rows sign people in to expense-pwa, so a PIN can be right and still have no
+// access here: only the roles in lib/roles.mjs get in.
 
 import { getSheetsClient, getSheetId } from '@/lib/google';
 import { quoteTab } from '@/lib/sheets';
+import { hasAccess } from '@/lib/roles.mjs';
 
 export async function POST(req) {
   try {
@@ -23,7 +26,10 @@ export async function POST(req) {
     for (const row of userRows) {
       const [name, userPin, role] = String(row[1] || '').split('|').map(s => s?.trim());
       if (userPin && userPin === pin) {
-        return Response.json({ user: { name, role: role || 'user' } });
+        if (!hasAccess(role)) {
+          return Response.json({ error: 'No access to Projects. Ask an admin.' }, { status: 403 });
+        }
+        return Response.json({ user: { name, role: role.toLowerCase() } });
       }
     }
 

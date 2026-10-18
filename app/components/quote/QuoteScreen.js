@@ -18,7 +18,7 @@ import PaymentSchedule, { fromServerStages, defaultStages } from '@/app/componen
 import BillConfirm from '@/app/components/quote/BillConfirm';
 import { VariationOrderList, VoBillCard } from '@/app/components/quote/VariationOrders';
 import { getUser } from '@/lib/session';
-import { ADMIN_ROLES } from '@/lib/constants';
+import { can, PERMISSIONS } from '@/lib/roles.mjs';
 import { quoteTotals } from '@/lib/quoteMaths.mjs';
 import { blankItem, fromServerLines, toSavePayload, snapshot } from '@/lib/quoteEditor.mjs';
 import { buildMemory } from '@/lib/priceMemory.mjs';
@@ -29,7 +29,8 @@ const NO_DISCOUNT = { on: false, mode: '$', value: '' };
 export default function QuoteScreen({ code, voId }) {
   const router = useRouter();
   const isVo = !!voId;
-  const quoteHref = `/projects/${encodeURIComponent(code)}/quote`;
+  const projectHref = `/projects/${encodeURIComponent(code)}`;
+  const quoteHref = `${projectHref}/quote`;
 
   const [user, setUser]         = useState(null);
   const [data, setData]         = useState(null);    // the screen payload from the server
@@ -47,7 +48,9 @@ export default function QuoteScreen({ code, voId }) {
   const [notice, setNotice]     = useState('');
 
   useEffect(() => { setUser(getUser()); }, []);
-  const isAdmin = !!user && ADMIN_ROLES.includes(user.role);
+  const canQuote = !!user && can(user.role, PERMISSIONS.QUOTES);
+  // Back to the view that links here: the Summary for admins, Billing for the office role
+  const backHref = user && !can(user.role, PERMISSIONS.SUMMARY) ? `${projectHref}/billing` : projectHref;
 
   const defaultService = useMemo(() => {
     const cats = data?.categories || [];
@@ -107,7 +110,7 @@ export default function QuoteScreen({ code, voId }) {
     }
   }, [code, voId, adopt]);
 
-  useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
+  useEffect(() => { if (canQuote) load(); }, [canQuote, load]);
 
   // Closing the tab or reloading with unsaved edits asks first
   useEffect(() => {
@@ -210,10 +213,10 @@ export default function QuoteScreen({ code, voId }) {
     : data?.quote ? `Variation order VO${data.quote.voNumber}` : 'New variation order';
   const subtitle = project ? `${project.address} · ${project.code}` : code;
 
-  if (user && !isAdmin) {
+  if (user && !canQuote) {
     return (
-      <AppShell title={title} subtitle={code} onBack={() => router.push(`/projects/${encodeURIComponent(code)}`)}>
-        <div style={{ ...card, padding: space.xl, fontSize: font.size.sm }}>Quote and billing is for admin users only.</div>
+      <AppShell title={title} subtitle={code} onBack={() => router.push(projectHref)}>
+        <div style={{ ...card, padding: space.xl, fontSize: font.size.sm }}>Your role cannot open quotes and billing.</div>
       </AppShell>
     );
   }
@@ -223,7 +226,7 @@ export default function QuoteScreen({ code, voId }) {
       layout="editor"
       title={title}
       subtitle={subtitle}
-      onBack={() => leaveIfSafe(() => router.push(isVo ? quoteHref : `/projects/${encodeURIComponent(code)}`))}
+      onBack={() => leaveIfSafe(() => router.push(isVo ? quoteHref : backHref))}
       actions={
         <button
           type="button" onClick={() => leaveIfSafe(load)} disabled={loading || saving}

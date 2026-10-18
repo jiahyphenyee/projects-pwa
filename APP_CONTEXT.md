@@ -32,7 +32,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/projectInvoices.js` | Every live Xero sales invoice and credit note, normalised and memoised for 10 minutes. Read-only. |
 | `app/api/dashboard/` | Quote figures, the project's matched Xero invoices and the thresholds, each settling on its own. Costs stay on `/api/costs`. |
 | `app/components/project/` | The project's two views' parts: Summary header, tiles and panels; `CostRow`, `LockCodeCard` and the `ViewSwitch` shared with Costs. `TotalsCard.js` now holds only the shared amount formatters. |
-| `app/projects/[code]/` | **Summary** (dashboard, admins) at `/projects/<code>`; **Costs** (workflow, everyone) at `/projects/<code>/costs`. |
+| `app/projects/[code]/` | **Summary** (dashboard, admins) at `/projects/<code>`; **Costs** (workflow, everyone) at `/projects/<code>/costs`; **Billing** (dashboard, office role) at `/projects/<code>/billing`. |
+| `lib/roles.mjs` | Which `PWA_USER_*` roles may sign in, and what each may do (`can(role, permission)`). Pure, tested. |
 | `lib/useProjectCosts.js`, `lib/useProjectDashboard.js`, `lib/useViewer.js` | A project's costs (load, cache fallback, tick, bulk mark), its Summary reads (dashboard + billing summary), and the viewer's role — shared by both views. |
 | `lib/dates.js` | ISO/serial date conversion and Singapore timestamps. Vercel runs UTC, so timezone is explicit. |
 | `lib/recents.js` | Per-user recently-opened projects, and the `RECENTS_CHANGED` event screens listen to. |
@@ -101,7 +102,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **Quoted = the quote's plus every VO's `contract_sum`, at its live version.** The by-service split spreads any discount across services by largest remainder, so service rows total the quoted figure to the cent. Lines with no category have their own row, so cost rows also total the grand total.
 - **Invoices match a project by Xero `Reference`**: the exact `display_address` first (ignoring case and spacing), then block number + first street word + unit number. A reference fitting two projects is shown as ambiguous and counted nowhere — never guessed. Credit notes subtract from invoiced; applied credit is already out of `AmountDue`.
 - **The Xero invoice read is separate from costs and fails soft.** `/api/dashboard` uses `Promise.allSettled`; a failed part returns `{ error }` and is not written over the last good cached copy. Credit notes that cannot be read are skipped, and the screen says so.
-- **Profit, margin, invoices, flags, the cost split and the by-service table live on the Summary, which is admin-only.** Non-admins and GEN-000 are redirected from `/projects/<code>` to `/costs` once the session is read (`useViewer().ready`) — never before, or an admin is bounced too. On Costs the lock code stays the first card: it is what people on site open the screen for.
+- **Profit, margin, invoices, flags, the cost split and the by-service table live on the Summary, which is admin-only.** Viewers without `SUMMARY` and GEN-000 are redirected from `/projects/<code>` to `/costs` once the session is read (`useViewer().ready`) — never before, or an admin is bounced too. The office role sees the billing and Xero invoices panels on the Billing view instead. On Costs the lock code stays the first card: it is what people on site open the screen for.
 - **"Xero invoices" is not "Invoiced".** The cost list's tick column means a cost was recharged to the client; keep the two words apart on screen.
 - **Thresholds are System config rows** (`TARGET_MARGIN_PCT`, `WATCH_LEVEL_PCT`, `OVER_LEVEL_PCT`, `CHASE_AFTER_DAYS`, `OVERDUE_AFTER_DAYS`), read with the same defaults when absent or blank — never 0.
 - **`Receipted expenses` is read to column T** (`cost_type`, written by `expense-pwa`). Still read-only here.
@@ -130,6 +131,13 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 - **`display_address` is the only name a project has. `Projects.project_name` (column E) is deprecated** — never read or write it. It was a copy of B that went stale: blank on 5 projects, drifted on 2, and referenced by nothing. Every formula, dropdown and denormalised row in the workbook joins on column B.
 - **A tab's column map is asserted against its header row on first use** (`assertHeaders`). Each module owning a tab declares one `COLUMNS` list pairing field name to header; the index map and the assertion are both derived from it, so they cannot drift apart. `null` marks a column this app does not address. One extra read per cold start. Add a column to a map and you must add its header — that is the point.
 - **Never delete a column from `Projects`.** Both this app and `expense-pwa` read that tab by index (`row[7]` status, `row[11]` lock_code), so removing the dead column E would silently shift every later field and empty the expense app's project picker. Deprecated columns stay in place.
+
+**Roles**
+
+- **Every role check goes through `can()` / `hasAccess()` in `lib/roles.mjs`.** Never compare a role string in a component or route. Admin and `boss_man` have every permission; `office` has `QUOTES` (quotes, VOs and billing) and `INVOICES` (Xero invoices) but not `SUMMARY` (profit, margin, budget, cost split, by service). Every listed role can open projects, create them and enter costs.
+- **A role not in `ROLE_PERMISSIONS` cannot use this app.** `/api/auth` refuses its PIN with a 403, and `getUser()` drops a session carrying it, so taking a role away signs that person out on their next screen. The same `PWA_USER_*` rows sign in to `expense-pwa`, which does its own gating — this lock-out is projects-pwa only.
+- **Roles gate screens, not data, except for billing.** The session is unsigned `localStorage` and no route checks identity, so a role check in the browser is convenience. Billing is the exception: the PIN re-entered on the confirm step yields a trustworthy role, and `lib/billing.js` refuses a PIN without `QUOTES`.
+- **The office role reaches quotes through the Billing view**, which holds the Summary's two billing panels. `ViewSwitch` offers Billing only to viewers without the Summary, and draws nothing when there is only one view.
 
 **Offline**
 

@@ -2,10 +2,12 @@
 
 // A project's Costs view — the workflow screen. Phone-first and one column: the lock
 // code people on site open it for, then every cost with add, edit, and the invoiced tick.
-// Everyone can use it; non-admins and GEN-000 land here from /projects/<code>.
+// Everyone who can sign in uses it; those without the Summary, and GEN-000, land here
+// from /projects/<code>.
 //
 // The figures about the job (profit, budget, invoices) are on the Summary view, which
-// admins switch to from here. This screen only says what the job has cost.
+// admins switch to from here; the office role switches to Billing instead. This screen
+// only says what the job has cost.
 
 import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -49,7 +51,7 @@ export default function ProjectCostsPage({ params }) {
   const router = useRouter();
 
   const { projects, loading: projectsLoading, refresh: refreshProjects } = useProjects();
-  const { userName, isAdmin } = useViewer();
+  const { userName } = useViewer();
   const {
     costs, receipted, totals, lines, loading, error, stale, pendingId, bulkBusy, unbilledCount,
     load, toggleInvoiced, markAllInvoiced,
@@ -135,11 +137,7 @@ export default function ProjectCostsPage({ params }) {
 
       {project && (
         <>
-          {isAdmin && !isGeneral && (
-            <div style={{ marginBottom: space.lg }}>
-              <ViewSwitch code={project.code} current="costs" />
-            </div>
-          )}
+          {!isGeneral && <ViewSwitch code={project.code} current="costs" style={{ marginBottom: space.lg }} />}
 
           {isGeneral && (
             <div style={{
