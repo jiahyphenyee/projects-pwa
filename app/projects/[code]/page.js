@@ -5,8 +5,9 @@
 // the cost went, quoted against spent per service, billing and Xero side by side, and
 // the newest costs. Every action leaves for the screen where the change is made.
 //
-// Admins only. Everyone else, and GEN-000 (no quote, no invoices), is sent to the Costs
-// view, so a bookmark or a link from Home still lands somewhere useful.
+// Admins only (the SUMMARY permission). Everyone else, and GEN-000 (no quote, no
+// invoices), is sent to the Costs view, so a bookmark or a link from Home still lands
+// somewhere useful.
 
 import { use, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -25,6 +26,7 @@ import { useProjectDashboard } from '@/lib/useProjectDashboard';
 import { useViewer } from '@/lib/useViewer';
 import { recordRecent } from '@/lib/recents';
 import { GENERAL_PROJECT_CODE } from '@/lib/constants';
+import { PERMISSIONS } from '@/lib/roles.mjs';
 import { describeAge } from '@/lib/localCache';
 import { costSplit, serviceBreakdown, projectFigures, possibleDuplicates } from '@/lib/projectFigures.mjs';
 import { card, color, font, radius, space } from '@/lib/theme';
@@ -42,12 +44,12 @@ export default function ProjectSummaryPage({ params }) {
   const router = useRouter();
 
   const { projects, loading: projectsLoading } = useProjects();
-  const { userName, isAdmin, ready } = useViewer();
+  const { userName, can, ready } = useViewer();
   const isGeneral = code === GENERAL_PROJECT_CODE;
-  const showSummary = ready && isAdmin && !isGeneral;
+  const showSummary = ready && can(PERMISSIONS.SUMMARY) && !isGeneral;
 
-  // Wait for the session before routing: until it is read, every viewer looks like a
-  // non-admin, and an admin would be bounced to Costs.
+  // Wait for the session before routing: until it is read, every viewer looks like they
+  // have no Summary, and an admin would be bounced to Costs.
   useEffect(() => {
     if (ready && !showSummary) router.replace(`/projects/${encodeURIComponent(code)}/costs`);
   }, [ready, showSummary, code, router]);

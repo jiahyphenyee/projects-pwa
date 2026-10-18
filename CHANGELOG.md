@@ -41,6 +41,7 @@ version and date and open a fresh one above.
 - `scripts/link-xero-contacts.mjs` proposes Xero contact pairings and writes confirmed ones to the new `Contacts.xero_contact_id` column (H).
 - `property_type` on `Projects` (column M) and `xero_tracking_option` on `Categories` (column E), so both apps can read one Xero mapping.
 - Quote versions: a Version field on the quote screen that only counts up (+) sets the version printed on the PDF; stored in the new `Quotes.issue_version` column (W).
+- `office` role: costs in both ledgers, quotes, VOs and billing, and a project **Billing** view (quote and Xero invoices), but no Summary.
 
 [Removed]
 - The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
@@ -66,6 +67,7 @@ version and date and open a fresh one above.
 - Quote PDF letterhead: logo in the top right corner, the heading and its facts at the top left, no company address and no property type; a quote shows its version (v1, v2…) instead of the Q-number, and a VO only its VO number.
 - PDF files are named `HFCQuote_v<n>_<address>.pdf` and `HFCVO<n>_<address>.pdf` (prefix from `QUOTE_FILE_PREFIX`).
 - The quote PDF says "This quotation is valid for N days." above the T&Cs instead of printing a "Valid until" date.
+- Only `admin`, `boss_man` and `office` PINs can sign in; any other role is refused at login, and billing re-checks the PIN's role on the server.
 
 [Fixed]
 - Project costs were read one column out: amounts appeared as the row's label, every total read 0.00, and invoiced costs showed as unbilled.

@@ -178,7 +178,7 @@ Key/value table, one row per constant. `TAB_*` keys are read at runtime by both 
 | COMPANY_NAME / COMPANY_UEN | | |
 | DRIVE_RECEIPTS_FOLDER_ID | *(id)* | *[corrected] — was undocumented* |
 | DRIVE_PAYSLIPS_FOLDER_ID | *(id)* | |
-| PWA_USER_1 / PWA_USER_2 | `name\|PIN\|role` | Both currently `admin` |
+| PWA_USER_1 / PWA_USER_2 | `name\|PIN\|role` | Both currently `admin`. The Projects PWA admits only `admin`, `boss_man` and `office` (quotes, billing, costs; no project Summary); other roles are refused there but still sign in to the expense PWA |
 | RULE_EXPENSES | *(reminder)* | |
 
 **Renaming a tab:** update its `TAB_*` key immediately after. Both apps cache config for
