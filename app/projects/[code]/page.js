@@ -125,7 +125,7 @@ export default function ProjectSummaryPage({ params }) {
 
           <PanelGrid>
             <QuoteBillingCard projectCode={project.code} summary={dash.billing} />
-            <XeroInvoicesCard address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
+            <XeroInvoicesCard code={project.code} address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
           </PanelGrid>
 
           {!loading && <LatestCostsPanel code={project.code} lines={lines} duplicates={duplicates} />}
