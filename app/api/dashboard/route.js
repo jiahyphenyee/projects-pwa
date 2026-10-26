@@ -12,24 +12,15 @@
 // and the cached costs, through lib/projectFigures.mjs, so a cached copy still ages
 // correctly offline.
 
-import { readTab, getConfig } from '@/lib/sheets';
-import { projectsTab, PROJECT_COL } from '@/lib/projects';
+import { getConfig } from '@/lib/sheets';
 import { projectQuoteFigures } from '@/lib/quotes';
-import { listSalesDocuments } from '@/lib/projectInvoices';
+import { loadMatching } from '@/lib/invoiceMatching';
 import { DASHBOARD_SETTINGS, readSettings, invoicesForProject } from '@/lib/projectFigures.mjs';
 
-const PROJECT_ID = /^(PRJ-|GEN-)/;
-
-async function projectAddresses() {
-  const tab = await projectsTab();
-  const rows = await readTab(tab, 'A:B', PROJECT_ID);
-  return rows.map(({ row }) => ({ code: row[PROJECT_COL.code] || '', address: row[PROJECT_COL.address] || '' }));
-}
-
 async function projectInvoices(projectCode) {
-  const [{ docs, creditNotesRead, fetchedAt }, projects] = await Promise.all([listSalesDocuments(), projectAddresses()]);
-  const { matched, ambiguous } = invoicesForProject(docs, projects, projectCode);
-  return { docs: matched, ambiguous, creditNotesRead, xeroFetchedAt: fetchedAt };
+  const { docs, creditNotesRead, xeroFetchedAt, projects, links, billed } = await loadMatching();
+  const { matched, ambiguous } = invoicesForProject(docs, projects, projectCode, { links, billed });
+  return { docs: matched, ambiguous, creditNotesRead, xeroFetchedAt };
 }
 
 async function settings() {

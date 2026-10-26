@@ -25,4 +25,5 @@ export const INVOICE_STATE = {
   chase:   { label: 'Chase',       variant: 'notInvoiced' },
   overdue: { label: 'Overdue',     variant: 'danger'      },
   credit:  { label: 'Credit note', variant: 'receipted'   },
+  draft:   { label: 'Draft',       variant: 'neutral'     },
 };

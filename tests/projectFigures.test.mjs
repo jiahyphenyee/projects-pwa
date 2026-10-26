@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   readSettings, costBucket, costSplit, quotedValue, serviceBreakdown, UNASSIGNED,
   projectFigures, statusFlag, summariseInvoices, invoiceAge, invoicesForProject, possibleDuplicates,
+  unassignedDocuments,
 } from '../lib/projectFigures.mjs';
 
 const settings = readSettings();
@@ -264,4 +265,80 @@ test('possible duplicates pair across the two ledgers only', () => {
     { id: 'PC-4', receipted: false, amount: 0 },
   ]);
   assert.deepEqual(dupes, { 'PC-1': ['EX-1'], 'EX-1': ['PC-1'] });
+});
+
+// ── Manual links, billing records, stages and drafts (Proposal 01) ──────────────────
+
+const shared = [
+  { code: 'PRJ-140', address: '615C Edgefield Plains, #17-353' },   // billed to the ID firm
+  { code: 'PRJ-166', address: '615C Edgefield Plains, #17-353' },   // billed to the owner
+];
+const xdoc = (id, number, reference, extra = {}) =>
+  ({ id, kind: 'invoice', number, reference, total: 100, due: 0, date: '2026-01-01', status: 'PAID', ...extra });
+
+test('a shared address stays ambiguous without a link or billing record', () => {
+  const { matched, ambiguous } = invoicesForProject([xdoc('x1', 'INV-1', '615C Edgefield Plains, #17-353')], shared, 'PRJ-166');
+  assert.equal(matched.length, 0);
+  assert.deepEqual(ambiguous.map(a => a.candidates), [['PRJ-140', 'PRJ-166']]);
+});
+
+test('an invoice this app billed belongs to its project, with its stage, despite a shared address', () => {
+  const docs = [xdoc('x1', 'INV-1', '615C Edgefield Plains, #17-353')];
+  const billed = [{ xeroId: 'x1', projectCode: 'PRJ-166', stage: 'Deposit' }];
+  const own = invoicesForProject(docs, shared, 'PRJ-166', { billed });
+  assert.deepEqual(own.matched.map(m => [m.number, m.matchedBy, m.stage, m.stageAuto]), [['INV-1', 'billed', 'Deposit', false]]);
+  const other = invoicesForProject(docs, shared, 'PRJ-140', { billed });
+  assert.equal(other.matched.length + other.ambiguous.length, 0);
+});
+
+test('a manual link wins over the billing record and the Reference', () => {
+  const docs = [xdoc('x1', 'INV-1', '27 Robin Road, #09-04')];
+  const links = [{ xeroId: 'x1', projectCode: 'PRJ-166' }];
+  const billed = [{ xeroId: 'x1', projectCode: 'PRJ-140', stage: 'Stage 1' }];
+  const { matched } = invoicesForProject(docs, [...shared, ...projects], 'PRJ-166', { links, billed });
+  assert.deepEqual(matched.map(m => [m.matchedBy, m.stage]), [['linked', 'Stage 1']]);
+  assert.equal(invoicesForProject(docs, [...shared, ...projects], 'PRJ-090', { links }).matched.length, 0);
+});
+
+test('older invoices are numbered by date; drafts and credit notes are not', () => {
+  const docs = [
+    xdoc('a', 'INV-3', '27 Robin Road, #09-04', { date: '2026-03-01' }),
+    xdoc('b', 'INV-1', '27 Robin Road, #09-04', { date: '2026-01-01' }),
+    xdoc('c', 'INV-D', '27 Robin Road, #09-04', { date: '2026-04-01', status: 'DRAFT' }),
+    { ...xdoc('d', 'CN-1', '27 Robin Road, #09-04', { date: '2026-02-01' }), kind: 'credit' },
+  ];
+  const { matched } = invoicesForProject(docs, projects, 'PRJ-090');
+  const byNo = Object.fromEntries(matched.map(m => [m.number, [m.stage, m.stageAuto]]));
+  assert.deepEqual(byNo, { 'INV-1': ['Payment 1', true], 'INV-3': ['Payment 2', true], 'INV-D': ['', false], 'CN-1': ['', false] });
+});
+
+test('drafts are listed but never counted', () => {
+  const s = summariseInvoices([
+    { kind: 'invoice', number: 'INV-1', date: '2026-01-01', total: 1000, due: 400, status: 'AUTHORISED' },
+    { kind: 'invoice', number: 'INV-2', date: '2026-02-01', total: 500,  due: 500, status: 'DRAFT' },
+  ], '2026-02-10', settings);
+  assert.equal(s.invoiced, 1000);
+  assert.equal(s.outstanding, 400);
+  assert.equal(s.items.length, 2);
+  assert.equal(s.items.find(i => i.number === 'INV-2').state, 'draft');
+});
+
+test('unassigned documents are the ones no single project claims', () => {
+  const docs = [
+    xdoc('x1', 'INV-1', '615C Edgefield Plains, #17-353'),
+    xdoc('x2', 'INV-2', '27 Robin Road, #09-04'),
+    xdoc('x3', 'INV-3', 'Somewhere Else #01-01'),
+  ];
+  const list = unassignedDocuments(docs, [...shared, ...projects]);
+  assert.deepEqual(list.map(d => [d.number, d.candidates]), [['INV-1', ['PRJ-140', 'PRJ-166']], ['INV-3', []]]);
+  assert.equal(unassignedDocuments(docs, [...shared, ...projects], { links: [{ xeroId: 'x1', projectCode: 'PRJ-166' }] }).length, 1);
+});
+
+test('each invoice carries what was paid on it, in exact cents', () => {
+  const s = summariseInvoices([
+    { kind: 'invoice', number: 'INV-1', date: '2026-01-01', total: 1000.10, due: 400.05, status: 'AUTHORISED' },
+    { kind: 'credit',  number: 'CN-1',  date: '2026-01-02', total: 50, due: 0 },
+  ], '2026-01-10', settings);
+  assert.equal(s.items.find(i => i.number === 'INV-1').paid, 600.05);
+  assert.equal(s.items.find(i => i.number === 'CN-1').paid, null);
 });

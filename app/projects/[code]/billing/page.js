@@ -88,7 +88,7 @@ export default function ProjectBillingPage({ params }) {
           <PanelGrid>
             {canQuote && <QuoteBillingCard projectCode={project.code} summary={dash.billing} />}
             {canSeeInvoices && (
-              <XeroInvoicesCard address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
+              <XeroInvoicesCard code={project.code} address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
             )}
           </PanelGrid>
         </DashboardStack>

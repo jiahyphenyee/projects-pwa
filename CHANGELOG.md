@@ -14,6 +14,7 @@ version and date and open a fresh one above.
 ## Unreleased
 
 [Added]
+- Xero invoices on the project screen show each invoice's payment stage, a PDF download, and drafts (greyed, never counted); a new Invoices screen links invoices matching cannot place, stored in the new `Xero links` tab (`scripts/setup-xero-links-tab.mjs`).
 - Project screen splits cost to date into materials, subcon, own labour and transport, with receipted against non-receipted underneath.
 - Admins see quoted, profit, margin, budget used, invoiced and outstanding on the project screen, with an On track / Watch / Over budget (or Healthy / Below target / Loss once closed) flag.
 - Xero invoices on the project screen, matched to the project by Reference, with collected, outstanding and Paid / Chase / Overdue by age.
