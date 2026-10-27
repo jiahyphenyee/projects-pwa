@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clientAccepted, acceptanceBlocker, clientStatusChange } from '../lib/clientAcceptance.mjs';
-import { settlingBlocker } from '../lib/clientAcceptance.mjs';
+import { settlingBlocker, attemptInFlight } from '../lib/clientAcceptance.mjs';
 
 test('only an accepted quote may be billed', () => {
   assert.equal(clientAccepted({ clientStatus: 'accepted' }), true);
@@ -49,4 +49,13 @@ test('settlingBlocker: VOs on the final invoice need the client\'s yes', () => {
   assert.match(settlingBlocker({ voNumber: 4, clientStatus: '', createdAt: '2026-10-28T08:00:00' }), /not accepted VO4/);
   assert.match(settlingBlocker({ voNumber: 5, clientStatus: 'sent', createdAt: '2026-09-01' }), /not accepted VO5/);
   assert.match(settlingBlocker({ voNumber: 6, clientStatus: '', createdAt: '' }), /not accepted VO6/);
+});
+
+test('attemptInFlight: a kept number with no invoice is a retry, never blocked', () => {
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', xeroSyncStatus: 'sending' }), true);
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', xeroSyncStatus: 'error' }), true);
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', status: 'error' }), true); // a VO
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', xeroInvoiceId: 'x', xeroSyncStatus: 'sending' }), false);
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: '', xeroSyncStatus: 'error' }), false);
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', status: 'draft' }), false);
 });
