@@ -67,3 +67,11 @@ test('a claim token still counts as an attempt in flight', async () => {
   assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', xeroSyncStatus: 'sending:ab12cd34' }), true);
   assert.equal(attemptInFlight({ xeroInvoiceNumber: '', xeroSyncStatus: 'error' }), false);
 });
+
+test('a VO invoice with title lines and rounded prices is still recognised as its own', async () => {
+  const { matchesStageInvoice } = await import('../lib/stageInvoice.mjs');
+  const mine = [{ Description: 'Variation order VO1' }, { Description: 'Extra sockets', Quantity: 3, UnitAmount: 12.345 }];
+  const echoed = { Contact: { ContactID: 'C' }, Total: 37.04, Reference: '1 Lane', Status: 'AUTHORISED',
+    LineItems: [{ Description: 'Variation order VO1', Quantity: 0, UnitAmount: 0, LineAmount: 0 }, { Description: 'Extra  sockets ', Quantity: 3, UnitAmount: 12.35, LineAmount: 37.05 }] };
+  assert.equal(matchesStageInvoice(echoed, { contactId: 'C', amount: 37.04, reference: '1 Lane', lines: mine }), true);
+});
