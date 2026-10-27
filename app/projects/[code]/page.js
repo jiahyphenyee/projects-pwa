@@ -20,6 +20,7 @@ import ServiceBreakdownCard from '@/app/components/project/ServiceBreakdownCard'
 import XeroInvoicesCard from '@/app/components/project/XeroInvoicesCard';
 import LatestCostsPanel from '@/app/components/project/LatestCostsPanel';
 import QuoteBillingCard from '@/app/components/quote/QuoteBillingCard';
+import XeroQuotesCard from '@/app/components/project/XeroQuotesCard';
 import { useProjects } from '@/lib/useProjects';
 import { useProjectCosts } from '@/lib/useProjectCosts';
 import { useProjectDashboard } from '@/lib/useProjectDashboard';
@@ -126,6 +127,7 @@ export default function ProjectSummaryPage({ params }) {
           <PanelGrid>
             <QuoteBillingCard projectCode={project.code} summary={dash.billing} />
             <XeroInvoicesCard code={project.code} address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
+            <XeroQuotesCard code={project.code} />
           </PanelGrid>
 
           {!loading && <LatestCostsPanel code={project.code} lines={lines} duplicates={duplicates} />}

@@ -1,4 +1,4 @@
-// Quotes made in Xero, for a project's Quotes page. Read-only.
+// Quotes made in Xero, for the project dashboard's "Quotes in Xero" panel. Read-only.
 //   GET /api/quotes/xero?project=PRJ-166      → { quotes, ambiguous, noPermission, fetchedAt }
 //   GET /api/quotes/xero?pdf=<Xero QuoteID>   → the quote as a PDF
 

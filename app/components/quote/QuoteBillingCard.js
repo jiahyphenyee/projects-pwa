@@ -8,9 +8,9 @@
 
 import LineRow from '@/app/components/LineRow';
 import Tag from '@/app/components/Tag';
-import Panel, { PanelLink } from '@/app/components/dashboard/Panel';
+import Panel from '@/app/components/dashboard/Panel';
 import { formatAmount } from '@/app/components/TotalsCard';
-import { color, font, space } from '@/lib/theme';
+import { color, font } from '@/lib/theme';
 
 /** `summary`: billingSummary() from /api/quotes?summary=, or `{ error }`, or null while loading. */
 export default function QuoteBillingCard({ projectCode, summary }) {
@@ -40,10 +40,6 @@ export default function QuoteBillingCard({ projectCode, summary }) {
           tags={<Tag variant={item.billed ? 'invoiced' : item.onFinal ? 'neutral' : 'notInvoiced'}>{item.billed ? 'Billed' : item.onFinal ? 'On final invoice' : 'Not billed'}</Tag>}
         />
       ))}
-
-      <div style={{ marginTop: space.sm }}>
-        <PanelLink href={`/projects/${encodeURIComponent(projectCode)}/quotes`} label="All quotes and client answers" />
-      </div>
     </Panel>
   );
 }
