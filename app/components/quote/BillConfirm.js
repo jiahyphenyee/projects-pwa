@@ -10,9 +10,11 @@ import { formatAmount } from '@/app/components/TotalsCard';
 import { formatIsoDate } from '@/lib/dates';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
-// `stages` set: bill those payment stages on one invoice. Absent: bill the variation order `quoteId`.
-export default function BillConfirm({ quoteId, stages, title, onClose, onBilled }) {
+// `stages` set: bill those payment stages on one invoice. `claim` set: a progress claim,
+// { pct, voIds } for a new one or { claimId } for a retry. Neither: the variation order `quoteId`.
+export default function BillConfirm({ quoteId, stages, claim, title, onClose, onBilled }) {
   const ids = (stages || []).map(st => st.id).join(',');
+  const claimKey = claim ? JSON.stringify(claim) : '';
   const [prep, setPrep]       = useState(null);
   const [error, setError]     = useState('');
   const [pin, setPin]         = useState('');
@@ -21,23 +23,29 @@ export default function BillConfirm({ quoteId, stages, title, onClose, onBilled 
 
   useEffect(() => {
     let live = true;
-    const qs = new URLSearchParams({ quote: quoteId, ...(ids ? { stage: ids } : {}) });
-    fetch(`/api/quotes/bill?${qs}`, { cache: 'no-store' })
+    const c = claimKey ? JSON.parse(claimKey) : null;
+    const qs = new URLSearchParams({
+      quote: quoteId,
+      ...(ids ? { stage: ids } : {}),
+      ...(c?.claimId ? { claim: c.claimId } : c ? { pct: String(c.pct), vos: (c.voIds || []).join(',') } : {}),
+    });
+    fetch(`/api/quotes/${c ? 'claim' : 'bill'}?${qs}`, { cache: 'no-store' })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not prepare the invoice'); return d; })
       .then(d => { if (live) setPrep(d); })
       .catch(err => { if (live) setError(err instanceof TypeError ? 'Offline — cannot reach Xero' : err.message); });
     return () => { live = false; };
-  }, [quoteId, ids]);
+  }, [quoteId, ids, claimKey]);
 
   async function confirm() {
     if (sending || pin.length !== 4) return;
     setSending(true);
     setError('');
     try {
-      const res = await fetch('/api/quotes/bill', {
+      const res = await fetch(claim ? '/api/quotes/claim' : '/api/quotes/bill', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           quoteId, stageIds: ids ? ids.split(',') : undefined, pin,
+          ...(claim ? { pct: claim.pct, voIds: claim.voIds, claimId: claim.claimId } : {}),
           expected: { amount: prep.preview.amount, quoteVersion: prep.preview.quoteVersion },
         }),
       });
