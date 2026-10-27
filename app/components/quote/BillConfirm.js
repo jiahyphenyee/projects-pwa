@@ -1,16 +1,18 @@
 'use client';
 
 // The confirm step before an invoice is created: invoice number, client, amount and the
-// exact line(s) Xero will receive — the final payment lists its balance and each VO it
-// settles — then the PIN. Nothing is sent until Confirm is pressed.
+// exact line(s) Xero will receive — one per stage when several are billed together, and the
+// final payment's balance and each VO it settles — then the PIN. Nothing is sent until
+// Confirm is pressed.
 
 import { useEffect, useState } from 'react';
 import { formatAmount } from '@/app/components/TotalsCard';
 import { formatIsoDate } from '@/lib/dates';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
-// `stage` set: bill that payment stage. `stage` absent: bill the variation order `quoteId`.
-export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }) {
+// `stages` set: bill those payment stages on one invoice. Absent: bill the variation order `quoteId`.
+export default function BillConfirm({ quoteId, stages, title, onClose, onBilled }) {
+  const ids = (stages || []).map(st => st.id).join(',');
   const [prep, setPrep]       = useState(null);
   const [error, setError]     = useState('');
   const [pin, setPin]         = useState('');
@@ -19,13 +21,13 @@ export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }
 
   useEffect(() => {
     let live = true;
-    const qs = new URLSearchParams({ quote: quoteId, ...(stage ? { stage: stage.id } : {}) });
+    const qs = new URLSearchParams({ quote: quoteId, ...(ids ? { stage: ids } : {}) });
     fetch(`/api/quotes/bill?${qs}`, { cache: 'no-store' })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not prepare the invoice'); return d; })
       .then(d => { if (live) setPrep(d); })
       .catch(err => { if (live) setError(err instanceof TypeError ? 'Offline — cannot reach Xero' : err.message); });
     return () => { live = false; };
-  }, [quoteId, stage?.id]);
+  }, [quoteId, ids]);
 
   async function confirm() {
     if (sending || pin.length !== 4) return;
@@ -35,7 +37,7 @@ export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }
       const res = await fetch('/api/quotes/bill', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          quoteId, stageId: stage?.id, pin,
+          quoteId, stageIds: ids ? ids.split(',') : undefined, pin,
           expected: { amount: prep.preview.amount, quoteVersion: prep.preview.quoteVersion },
         }),
       });
@@ -68,7 +70,7 @@ export default function BillConfirm({ quoteId, stage, title, onClose, onBilled }
 
         {prep?.dryRun && (
           <div style={{ padding: `${space.sm}px ${space.md}px`, background: color.accentLight, color: color.accent, borderRadius: radius.md, fontSize: font.size.xs, fontWeight: 600 }}>
-            DRY RUN — nothing will be sent to Xero and the stage will stay unbilled. You will see exactly what would have been sent.
+            DRY RUN — nothing will be sent to Xero and nothing will be marked billed. You will see exactly what would have been sent.
           </div>
         )}
 
