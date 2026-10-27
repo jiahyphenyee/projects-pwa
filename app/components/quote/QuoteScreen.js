@@ -371,7 +371,7 @@ export default function QuoteScreen({ code, voId }) {
                     vos={data.variationOrders || []}
                     onOpen={id => leaveIfSafe(() => router.push(`${quoteHref}/vo/${encodeURIComponent(id)}`))}
                     onNew={() => leaveIfSafe(() => router.push(`${quoteHref}/vo/new`))}
-                    canAdd={!!data.quote} finalBilled={!!data.finalBilled}
+                    canAdd={!!data.quote} finalBilled={!!data.finalBilled} byClaims={!!data.byClaims}
                   />
                 </>
               )}
