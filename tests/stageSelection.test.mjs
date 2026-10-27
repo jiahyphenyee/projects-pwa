@@ -48,3 +48,22 @@ test('stages billed together: one line each, and the final keeps its VO lines', 
   assert.equal(inv.LineItems[2].Description, 'Add: VO1 – Sockets');
   assert.throws(() => buildStageInvoice({ ...base, stages: [{ name: 'A', sharePct: 10, amount: 1000 }, { name: 'B', sharePct: 0, amount: 0 }] }), /more than \$0\.00 \(B\)/);
 });
+
+test('an invoice found by number is adopted only if its lines are this attempt\'s', async () => {
+  const { matchesStageInvoice } = await import('../lib/stageInvoice.mjs');
+  const mine = [{ Description: 'Progress payment 2, 30% of contract sum $10,000.00', Quantity: 1, UnitAmount: 3000 }];
+  const found = l => ({ Contact: { ContactID: 'C' }, Total: 3000, Reference: '1 Lane', Status: 'AUTHORISED', LineItems: l });
+  const want = { contactId: 'C', amount: 3000, reference: '1 Lane', lines: mine };
+  assert.equal(matchesStageInvoice(found(mine), want), true);
+  // another stage's invoice with the same total is not ours
+  assert.equal(matchesStageInvoice(found([{ ...mine[0], Description: 'Progress payment 1, 30% of contract sum $10,000.00' }]), want), false);
+  assert.equal(matchesStageInvoice(found([]), want), false);
+  // without lines to compare, the old check still applies
+  assert.equal(matchesStageInvoice(found([]), { ...want, lines: undefined }), true);
+});
+
+test('a claim token still counts as an attempt in flight', async () => {
+  const { attemptInFlight } = await import('../lib/clientAcceptance.mjs');
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: 'INV-1', xeroSyncStatus: 'sending:ab12cd34' }), true);
+  assert.equal(attemptInFlight({ xeroInvoiceNumber: '', xeroSyncStatus: 'error' }), false);
+});

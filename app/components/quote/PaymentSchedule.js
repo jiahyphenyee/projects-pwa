@@ -11,6 +11,7 @@ import { scheduleAmounts, finalPaymentDue } from '@/lib/quoteMaths.mjs';
 import { voSettlementDescription } from '@/lib/stageInvoice.mjs';
 import { acceptDecimal } from '@/lib/quoteEditor.mjs';
 import { retryGroup } from '@/lib/stageSelection.mjs';
+import { attemptInFlight } from '@/lib/clientAcceptance.mjs';
 import { formatAmount } from '@/app/components/TotalsCard';
 import { card, color, font, radius, space } from '@/lib/theme';
 
@@ -164,7 +165,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
                         background: r.key === nextKey ? color.primary : color.surface,
                         color: r.key === nextKey ? '#fff' : color.text,
                       }}
-                    >{r.xeroInvoiceNumber && ['error', 'sending'].includes(r.xeroSyncStatus) ? 'Retry bill' : 'Bill now'}</button>
+                    >{attemptInFlight(r) ? 'Retry bill' : 'Bill now'}</button>
                   )}
                 </div>
                 {r.isFinal ? <div /> : (
@@ -189,6 +190,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
         </div>
         {!globalBlock && (
           <BillTogether
+            key={rows.filter(r => r.billed).length}
             rows={rows.filter(r => !r.billed && r.id && !r.xeroInvoiceNumber && (s.amounts.get(r.key) || 0) > 0)}
             amounts={s.amounts} disabled={disabled} onBill={onBill}
           />
