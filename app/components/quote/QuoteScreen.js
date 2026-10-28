@@ -16,10 +16,12 @@ import LineEditor, { qtyOf, priceOf } from '@/app/components/quote/LineEditor';
 import TotalsPanel from '@/app/components/quote/TotalsPanel';
 import PaymentSchedule, { fromServerStages, defaultStages } from '@/app/components/quote/PaymentSchedule';
 import BillConfirm from '@/app/components/quote/BillConfirm';
+import ClientAnswer from '@/app/components/quote/ClientAnswer';
 import { VariationOrderList, VoBillCard } from '@/app/components/quote/VariationOrders';
 import { getUser } from '@/lib/session';
 import { can, PERMISSIONS } from '@/lib/roles.mjs';
 import { quoteTotals } from '@/lib/quoteMaths.mjs';
+import { attemptInFlight } from '@/lib/clientAcceptance.mjs';
 import { blankItem, fromServerLines, toSavePayload, snapshot } from '@/lib/quoteEditor.mjs';
 import { buildMemory } from '@/lib/priceMemory.mjs';
 import { button, card, color, font, radius, space } from '@/lib/theme';
@@ -218,6 +220,10 @@ export default function QuoteScreen({ code, voId }) {
 
   const project = data?.project;
   const locked = !!data?.quote?.xeroInvoiceId;   // a billed VO cannot change
+  // Invoiced, or an invoice attempt that may already be in Xero: the answer can only be "accepted"
+  const answerLocked = isVo
+    ? locked || attemptInFlight(data?.quote)
+    : !!data?.schedule?.stages?.some(st => st.xeroInvoiceId || attemptInFlight(st));
   const title = !isVo ? 'Quote and billing'
     : data?.quote ? `Variation order VO${data.quote.voNumber}` : 'New variation order';
   const subtitle = project ? `${project.address} · ${project.code}` : code;
@@ -289,6 +295,13 @@ export default function QuoteScreen({ code, voId }) {
             </div>
             )}
           </div>
+
+          {data.quote && (
+            <ClientAnswer
+              key={data.quote.id} quote={data.quote} billed={answerLocked} isVo={isVo}
+              onChange={fields => setData(d => ({ ...d, quote: { ...d.quote, ...fields } }))}
+            />
+          )}
 
           {locked && (
             <div style={{ padding: `${space.sm}px ${space.md}px`, background: color.successLight, color: color.success, borderRadius: radius.md, fontSize: font.size.sm, fontWeight: 600 }}>

@@ -14,6 +14,7 @@ version and date and open a fresh one above.
 ## Unreleased
 
 [Added]
+- Client answer (Sent / Accepted / Declined, with dates) at the top of the quote and each VO screen, and a read-only "Quotes in Xero" panel with PDFs on the project dashboard; no stage or VO can be billed until the client has accepted, including VOs settled on the final invoice (quotes already billed, and VOs written before 28 Oct 2026, carry on).
 - Xero invoices on the project screen show each invoice's payment stage, a PDF download, and drafts (greyed, never counted); a new Invoices screen links invoices matching cannot place, stored in the new `Xero links` tab (`scripts/setup-xero-links-tab.mjs`).
 - Project screen splits cost to date into materials, subcon, own labour and transport, with receipted against non-receipted underneath.
 - Admins see quoted, profit, margin, budget used, invoiced and outstanding on the project screen, with an On track / Watch / Over budget (or Healthy / Below target / Loss once closed) flag.
