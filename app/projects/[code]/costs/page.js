@@ -16,6 +16,7 @@ import CostForm from '@/app/components/CostForm';
 import { formatAmount } from '@/app/components/TotalsCard';
 import FilterChip, { FilterGroup } from '@/app/components/FilterChip';
 import CostRow, { ACTION_WIDTH } from '@/app/components/project/CostRow';
+import CostDetail from '@/app/components/project/CostDetail';
 import LockCodeCard from '@/app/components/project/LockCodeCard';
 import ViewSwitch from '@/app/components/project/ViewSwitch';
 import { useProjects } from '@/lib/useProjects';
@@ -54,11 +55,12 @@ export default function ProjectCostsPage({ params }) {
   const { userName } = useViewer();
   const {
     costs, receipted, totals, lines, loading, error, stale, pendingId, bulkBusy, unbilledCount,
-    load, toggleInvoiced, markAllInvoiced,
+    load, toggleInvoiced, markAllInvoiced, setBilling,
   } = useProjectCosts(code);
 
   const [adding, setAdding]       = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [openId, setOpenId]       = useState(null);     // the cost shown in the detail sheet
   const [selected, setSelected]   = useState([]);     // category codes being filtered to
   const [status, setStatus]       = useState('all');  // all | invoiced | not
 
@@ -188,19 +190,30 @@ export default function ProjectCostsPage({ params }) {
 
           {/* What the job has cost — the whole project, whatever the filters below show */}
           {!loading && totals && (
-            <section style={{
-              ...card, padding: space.lg, marginBottom: space.lg,
-              display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: space.md,
-            }}>
-              <span style={{ fontSize: font.size.md, fontWeight: 600, color: color.text }}>
-                Cost to date
-                <span style={{ color: color.subtle, fontSize: font.size.xs, fontWeight: 400 }}>
-                  {' · '}{count} {count === 1 ? 'expense' : 'expenses'}
+            <section style={{ ...card, padding: space.lg, marginBottom: space.lg }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: space.md }}>
+                <span style={{ fontSize: font.size.md, fontWeight: 600, color: color.text }}>
+                  Cost to date
+                  <span style={{ color: color.subtle, fontSize: font.size.xs, fontWeight: 400 }}>
+                    {' · '}{count} {count === 1 ? 'expense' : 'expenses'}
+                  </span>
                 </span>
-              </span>
-              <span style={{
-                fontSize: font.size.xl, fontWeight: 600, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-              }}>{formatAmount(totals.grandTotal)}</span>
+                <span style={{
+                  fontSize: font.size.xl, fontWeight: 600, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                }}>{formatAmount(totals.grandTotal)}</span>
+              </div>
+              {/* How it was billed. In cents, so the three always add up to the total */}
+              {lines.length > 0 && (() => {
+                const c = list => list.reduce((a, l) => a + Math.round(Number(l.amount) * 100), 0) / 100;
+                const direct = c(lines.filter(l => l.invoiced && l.invoiceRef));
+                const inProject = c(lines.filter(l => l.invoiced && !l.invoiceRef));
+                const notBilled = c(lines.filter(l => !l.invoiced));
+                return (
+                  <div style={{ marginTop: space.xs, fontSize: font.size.xs, color: color.muted, lineHeight: 1.6 }}>
+                    Billed in project {formatAmount(inProject)} · billed direct {formatAmount(direct)} · not billed {formatAmount(notBilled)}
+                  </div>
+                );
+              })()}
             </section>
           )}
 
@@ -380,11 +393,23 @@ export default function ProjectCostsPage({ params }) {
                 busy={pendingId === line.id}
                 duplicateOf={duplicates[line.id]}
                 onToggle={() => toggleInvoiced(line)}
-                onEdit={line.editable
-                  ? () => { setAdding(false); setEditingId(line.id); }
-                  : undefined}
+                onOpen={() => setOpenId(line.id)}
               />
             ))}
+
+            {openId && lines.find(l => l.id === openId) && (() => {
+              const line = lines.find(l => l.id === openId);
+              return (
+                <CostDetail
+                  line={line}
+                  projectCode={code}
+                  busy={pendingId === line.id}
+                  onClose={() => setOpenId(null)}
+                  onBilling={(invoiced, ref) => setBilling(line, invoiced, ref)}
+                  onEdit={line.editable ? () => { setOpenId(null); setAdding(false); setEditingId(line.id); } : undefined}
+                />
+              );
+            })()}
 
             {/* Bulk marking always covers the whole project, so it is withheld while a
                 filter is on. A button reading "Mark 27" under a list showing 6 is how

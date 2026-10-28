@@ -31,7 +31,7 @@ export const ACTION_WIDTH = 58;
  * Without `onToggle` the row has no invoiced tick — the Summary's "Latest costs" shows
  * the same rows read-only, because a dashboard never edits in place.
  */
-export default function CostRow({ line, first, busy, duplicateOf, onToggle, onEdit }) {
+export default function CostRow({ line, first, busy, duplicateOf, onToggle, onEdit, onOpen }) {
   // Description is what identifies the cost to a human. Falling back to the category, use
   // the readable name rather than the code — a bare "ELEC" as a whole row label is worse
   // than "Electrical", even though the tag itself is the code.
@@ -39,7 +39,7 @@ export default function CostRow({ line, first, busy, duplicateOf, onToggle, onEd
 
   // Reads as one quiet clause: what it is, when, and who was paid.
   const meta = [
-    line.receipted ? 'Receipted' : null,
+    line.receipted ? (line.xeroBillId ? 'Receipted 📎' : 'Receipted') : null,
     formatIsoDate(line.date),
     line.payeeName || null,
     // Same amount in the other ledger. Quiet text, not a tag: often it is a genuine second
@@ -51,7 +51,9 @@ export default function CostRow({ line, first, busy, duplicateOf, onToggle, onEd
     <LineRow
       first={first}
       dimmed={busy}
-      onLabelClick={onEdit}
+      onLabelClick={onOpen || onEdit}
+      labelVerb={onOpen ? 'Open' : 'Edit'}
+      clampLines={2}
       label={label}
       amount={formatRowAmount(line.amount)}
       meta={meta}
@@ -59,6 +61,7 @@ export default function CostRow({ line, first, busy, duplicateOf, onToggle, onEd
         <>
           {line.categoryCode && <Tag variant="neutral">{line.categoryCode}</Tag>}
           {line.status === 'pending' && <Tag variant="notInvoiced">Pending review</Tag>}
+          {line.invoiced && line.invoiceRef && <Tag variant="invoiced">Billed direct · {line.invoiceRef}</Tag>}
         </>
       }
       action={onToggle && (

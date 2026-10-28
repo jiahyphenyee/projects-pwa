@@ -23,7 +23,7 @@ import { color, font, space } from '@/lib/theme';
  * Amounts take their natural width and the action column is fixed, so every amount's
  * RIGHT edge lands in the same place: a column of figures you can read down.
  */
-export default function LineRow({ label, amount, tags, meta, action, first, dimmed, onLabelClick }) {
+export default function LineRow({ label, amount, tags, meta, action, first, dimmed, onLabelClick, labelVerb = 'Edit', clampLines = 0 }) {
   // The label and amount become one tap target for editing when a handler is given.
   // The row's own action (e.g. the invoiced switch) stays outside it, so ticking a
   // line never opens the editor by accident.
@@ -44,6 +44,8 @@ export default function LineRow({ label, amount, tags, meta, action, first, dimm
       display: 'block', minWidth: 0,
       fontSize: font.size.md, fontWeight: 600, lineHeight: 1.35,
       color: color.text,
+      // Long text (a receipt typed out in full) is cut to a few lines; the detail shows it whole
+      ...(clampLines ? { display: '-webkit-box', WebkitLineClamp: clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}),
     }}>{label}</span>
   );
 
@@ -63,7 +65,7 @@ export default function LineRow({ label, amount, tags, meta, action, first, dimm
               onClick={onLabelClick}
               className="row-label"
               style={headingStyle}
-              aria-label={`Edit ${label}`}
+              aria-label={`${labelVerb} ${label}`}
             >{heading}</button>
           )
           : <div style={headingStyle}>{heading}</div>}

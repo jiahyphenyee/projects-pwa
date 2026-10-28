@@ -31,7 +31,7 @@ export async function GET(req) {
     // An expense with no row in the invoicing tab has simply never been ticked
     const receipted = expenses.map(e => {
       const entry = invoicing.get(e.id);
-      return { ...e, invoiced: entry?.invoiced === true, invoicedDate: entry?.invoicedDate || '' };
+      return { ...e, invoiced: entry?.invoiced === true, invoicedDate: entry?.invoicedDate || '', invoiceRef: entry?.invoiceRef || '' };
     });
 
     // Newest first. Dates are ISO here, so string comparison is chronological;
@@ -65,7 +65,7 @@ export async function POST(req) {
 
 export async function PATCH(req) {
   try {
-    const { id, invoiced, projectCode, all } = await req.json();
+    const { id, invoiced, projectCode, all, invoiceRef } = await req.json();
     const wants = invoiced === true;
 
     // ── Bulk: every line on the project, of both kinds ────────────────────────
@@ -90,8 +90,8 @@ export async function PATCH(req) {
     // ── Single: the id says which tab holds the state ─────────────────────────
     const lineId = String(id || '').trim();
     const result = EXPENSE_ID.test(lineId)
-      ? await setExpenseInvoiced(lineId, wants)
-      : await setInvoiced(lineId, wants);
+      ? await setExpenseInvoiced(lineId, wants, invoiceRef)
+      : await setInvoiced(lineId, wants, invoiceRef);
 
     if (!result.ok) {
       const { status, ...rest } = result;
@@ -108,6 +108,7 @@ export async function PATCH(req) {
         receipted:    EXPENSE_ID.test(lineId),
         invoiced:     saved.invoiced === true,
         invoicedDate: saved.invoicedDate || '',
+        invoiceRef:   saved.invoiceRef || '',
       },
     });
 

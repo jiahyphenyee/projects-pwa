@@ -26,6 +26,8 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/projects.js` | Server-side project creation and lock-code edits (works around the protected column C). |
 | `lib/costs.js` | Server-side cost CRUD against the `Project costs` tab. |
 | `lib/expenses.js` | READ-ONLY view of the receipted `Expenses` tab. Never writes. |
+| `lib/receipts.js` | A receipted expense's receipt, read from its Xero bill's attachments (Expenses P `xero_bill_id`) and streamed by `/api/costs/receipt`. Nothing is stored. |
+| `lib/costBilling.mjs` | How a cost was billed: `invoiced` + `invoice_ref` ('' = in the project's invoices, a number = billed direct on that invoice). |
 | `lib/receiptedInvoicing.js` | Invoiced state for receipted expenses, in the separate tab this app owns. |
 | `lib/rollups.js` | All cost aggregation, the merge of the two cost sources, and the `GEN-000` exclusion rule. |
 | `lib/projectFigures.mjs` | Every project-screen figure past the cost list: cost split, quoted value by service, profit/margin/budget, status flag, invoice ageing, invoice→project matching, possible duplicates. Pure, tested. |
