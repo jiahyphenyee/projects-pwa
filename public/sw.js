@@ -84,6 +84,8 @@ self.addEventListener('fetch', event => {
   if (url.pathname.startsWith('/api/invoices/pdf')) return;
   // Receipts come from Xero on demand and are never kept by the app
   if (url.pathname.startsWith('/api/costs/receipt')) return;
+  // Same for Xero quote PDFs.
+  if (url.pathname.startsWith('/api/quotes/xero') && url.searchParams.has('pdf')) return;
 
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirst(request));

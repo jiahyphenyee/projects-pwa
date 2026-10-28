@@ -14,6 +14,7 @@ import { DashboardStack, PanelGrid } from '@/app/components/dashboard/Grid';
 import ViewSwitch from '@/app/components/project/ViewSwitch';
 import XeroInvoicesCard from '@/app/components/project/XeroInvoicesCard';
 import QuoteBillingCard from '@/app/components/quote/QuoteBillingCard';
+import XeroQuotesCard from '@/app/components/project/XeroQuotesCard';
 import { useProjects } from '@/lib/useProjects';
 import { useProjectDashboard } from '@/lib/useProjectDashboard';
 import { useViewer } from '@/lib/useViewer';
@@ -90,6 +91,7 @@ export default function ProjectBillingPage({ params }) {
             {canSeeInvoices && (
               <XeroInvoicesCard code={project.code} address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
             )}
+            {canQuote && <XeroQuotesCard code={project.code} />}
           </PanelGrid>
         </DashboardStack>
       )}

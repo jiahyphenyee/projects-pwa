@@ -16,10 +16,14 @@ import LineEditor, { qtyOf, priceOf } from '@/app/components/quote/LineEditor';
 import TotalsPanel from '@/app/components/quote/TotalsPanel';
 import PaymentSchedule, { fromServerStages, defaultStages } from '@/app/components/quote/PaymentSchedule';
 import BillConfirm from '@/app/components/quote/BillConfirm';
+import ClientAnswer from '@/app/components/quote/ClientAnswer';
+import ProgressClaims from '@/app/components/quote/ProgressClaims';
+import { claimCounts } from '@/lib/progressClaims.mjs';
 import { VariationOrderList, VoBillCard } from '@/app/components/quote/VariationOrders';
 import { getUser } from '@/lib/session';
 import { can, PERMISSIONS } from '@/lib/roles.mjs';
 import { quoteTotals } from '@/lib/quoteMaths.mjs';
+import { attemptInFlight } from '@/lib/clientAcceptance.mjs';
 import { blankItem, fromServerLines, toSavePayload, snapshot } from '@/lib/quoteEditor.mjs';
 import { buildMemory } from '@/lib/priceMemory.mjs';
 import { button, card, color, font, radius, space } from '@/lib/theme';
@@ -41,7 +45,7 @@ export default function QuoteScreen({ code, voId }) {
   const [stages, setStages]     = useState([]);
   const [voTitle, setVoTitle]   = useState('');      // VO only: its line on the final invoice
   const [voReason, setVoReason] = useState('');      // VO only: extra work / omitted / changed / goodwill
-  const [billing, setBilling]   = useState(null);    // { stage } or { vo: true }: the confirm step open
+  const [billing, setBilling]   = useState(null);    // { stages } | { claim } | { vo: true }: the confirm step open
   const [saved, setSaved]       = useState('');      // snapshot of the last loaded/saved state
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -218,6 +222,10 @@ export default function QuoteScreen({ code, voId }) {
 
   const project = data?.project;
   const locked = !!data?.quote?.xeroInvoiceId;   // a billed VO cannot change
+  // Invoiced, or an invoice attempt that may already be in Xero: the answer can only be "accepted"
+  const answerLocked = isVo
+    ? locked || attemptInFlight(data?.quote)
+    : !!data?.schedule?.stages?.some(st => st.xeroInvoiceId || attemptInFlight(st));
   const title = !isVo ? 'Quote and billing'
     : data?.quote ? `Variation order VO${data.quote.voNumber}` : 'New variation order';
   const subtitle = project ? `${project.address} · ${project.code}` : code;
@@ -290,9 +298,16 @@ export default function QuoteScreen({ code, voId }) {
             )}
           </div>
 
+          {data.quote && (
+            <ClientAnswer
+              key={data.quote.id} quote={data.quote} billed={answerLocked} isVo={isVo}
+              onChange={fields => setData(d => ({ ...d, quote: { ...d.quote, ...fields } }))}
+            />
+          )}
+
           {locked && (
             <div style={{ padding: `${space.sm}px ${space.md}px`, background: color.successLight, color: color.success, borderRadius: radius.md, fontSize: font.size.sm, fontWeight: 600 }}>
-              {data.quote.settledOnStageId ? 'Settled on the final payment invoice' : 'Billed as'} {data.quote.xeroInvoiceNumber} on {formatWhen(data.quote.billedAt)}{data.quote.billedBy ? ` by ${data.quote.billedBy}` : ''}. It can no longer be changed; void it in Xero first if it is wrong.
+              {String(data.quote.settledOnStageId).startsWith('CLM-') ? 'Billed on progress claim invoice' : data.quote.settledOnStageId ? 'Settled on the final payment invoice' : 'Billed as'} {data.quote.xeroInvoiceNumber} on {formatWhen(data.quote.billedAt)}{data.quote.billedBy ? ` by ${data.quote.billedBy}` : ''}. It can no longer be changed; void it in Xero first if it is wrong.
             </div>
           )}
 
@@ -339,14 +354,24 @@ export default function QuoteScreen({ code, voId }) {
                     rows={stages} onChange={setStages} contractSum={totals.contractSum}
                     vos={data.variationOrders || []}
                     dirty={dirty} saved={!!data.quote} disabled={saving}
-                    onBill={st => setBilling({ stage: st })}
+                    onBill={list => setBilling({ stages: list })}
                     quoteId={data.quote?.id} onAttached={() => load()}
+                    byClaims={(data.claims || []).some(claimCounts)}
                   />
+                  {data.quote && (
+                    <ProgressClaims
+                      key={(data.claims || []).length}
+                      quote={data.quote} stages={data.schedule?.stages || []} claims={data.claims || []}
+                      vos={data.variationOrders || []}
+                      block={dirty ? 'Save your changes first.' : ''}
+                      onClaim={c => setBilling({ claim: c })}
+                    />
+                  )}
                   <VariationOrderList
                     vos={data.variationOrders || []}
                     onOpen={id => leaveIfSafe(() => router.push(`${quoteHref}/vo/${encodeURIComponent(id)}`))}
                     onNew={() => leaveIfSafe(() => router.push(`${quoteHref}/vo/new`))}
-                    canAdd={!!data.quote} finalBilled={!!data.finalBilled}
+                    canAdd={!!data.quote} finalBilled={!!data.finalBilled} byClaims={!!data.byClaims}
                   />
                 </>
               )}
@@ -389,8 +414,9 @@ export default function QuoteScreen({ code, voId }) {
       )}
       {billing && data?.quote && (
         <BillConfirm
-          quoteId={data.quote.id} stage={billing.stage}
-          title={billing.stage ? `Bill ${billing.stage.name}` : `Bill variation order VO${data.quote.voNumber}`}
+          quoteId={data.quote.id} stages={billing.stages} claim={billing.claim}
+          title={billing.claim ? (billing.claim.claimId ? 'Retry progress claim' : `Progress claim: ${billing.claim.pct}% done`)
+            : billing.stages ? `Bill ${billing.stages.map(st => st.name).join(' + ')}` : `Bill variation order VO${data.quote.voNumber}`}
           onClose={() => setBilling(null)}
           onBilled={() => load()}
         />

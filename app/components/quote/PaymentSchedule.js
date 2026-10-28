@@ -1,7 +1,7 @@
 'use client';
 
 // The payment schedule card. Shares are edited here and saved with the quote; each stage is
-// billed on its own with "Bill now". Amounts come from lib/quoteMaths.mjs scheduleAmounts
+// billed with "Bill now", or several on one invoice with "Bill stages together". Amounts come from lib/quoteMaths.mjs scheduleAmounts
 // and finalPaymentDue, the same functions the server bills with, so what is shown is what
 // is invoiced. The final row shows its balance of the contract sum, then one line per
 // variation order it settles (additions and omissions), then the total due.
@@ -10,6 +10,8 @@ import { useState } from 'react';
 import { scheduleAmounts, finalPaymentDue } from '@/lib/quoteMaths.mjs';
 import { voSettlementDescription } from '@/lib/stageInvoice.mjs';
 import { acceptDecimal } from '@/lib/quoteEditor.mjs';
+import { retryGroup } from '@/lib/stageSelection.mjs';
+import { attemptInFlight } from '@/lib/clientAcceptance.mjs';
 import { formatAmount } from '@/app/components/TotalsCard';
 import { card, color, font, radius, space } from '@/lib/theme';
 
@@ -71,7 +73,7 @@ export function computeSchedule(rows, contractSum, vos = []) {
   return { ...s, finalNegative, amounts, final: detail };
 }
 
-export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached }) {
+export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached, byClaims = false }) {
   const s = computeSchedule(rows, contractSum, vos);
   const nextKey = rows.find(r => !r.billed && (s.amounts.get(r.key) || 0) > 0)?.key;
   const set = (key, change) => onChange(rows.map(r => (r.key === key ? { ...r, ...change } : r)));
@@ -86,7 +88,8 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
   }
 
   // Why "Bill now" is off for every stage, if it is. Per-stage reasons are in the button title.
-  const globalBlock = !saved ? 'Save the quote before billing.'
+  const globalBlock = byClaims ? 'This job is billed by progress claims now, so the stages are switched off.'
+    : !saved ? 'Save the quote before billing.'
     : dirty ? 'Save your changes before billing.'
     : s.overAllocated ? 'The stages add up to more than 100%.'
     : s.finalNegative ? (s.final?.balance >= 0 ? 'The omissions come to more than what is left to bill.' : 'The contract sum is less than what has already been billed.')
@@ -155,7 +158,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
                     }}>Billed · {r.xeroInvoiceNumber}</span>
                   ) : (
                     <button type="button" disabled={disabled || !!stageBlock || !r.id} title={stageBlock || (!r.id ? 'Save the quote first.' : '')}
-                      onClick={() => onBill(r)} className="qe-btn"
+                      onClick={() => onBill(retryGroup(rows, r))} className="qe-btn"
                       style={{
                         height: 36, padding: '0 14px', borderRadius: radius.sm, fontWeight: 600, fontSize: font.size.sm,
                         fontFamily: font.stack, cursor: 'pointer',
@@ -163,7 +166,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
                         background: r.key === nextKey ? color.primary : color.surface,
                         color: r.key === nextKey ? '#fff' : color.text,
                       }}
-                    >{r.xeroSyncStatus === 'error' ? 'Retry bill' : 'Bill now'}</button>
+                    >{attemptInFlight(r) ? 'Retry bill' : 'Bill now'}</button>
                   )}
                 </div>
                 {r.isFinal ? <div /> : (
@@ -186,6 +189,13 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
           >+ Add stage</button>
           <span style={{ fontSize: font.size.xs, color: color.muted }}>Shares total {formatPct(s.sharesTotal)}; the final payment takes the rest, plus any variation orders not billed early.</span>
         </div>
+        {!globalBlock && (
+          <BillTogether
+            key={rows.filter(r => r.billed).length}
+            rows={rows.filter(r => !r.billed && r.id && !r.xeroInvoiceNumber && (s.amounts.get(r.key) || 0) > 0)}
+            amounts={s.amounts} disabled={disabled} onBill={onBill}
+          />
+        )}
         {s.overAllocated && (
           <div role="alert" style={{ padding: `${space.sm}px ${space.md}px`, background: color.dangerLight, color: color.danger, borderRadius: radius.md, fontSize: font.size.xs }}>
             The stages add up to more than 100%. Reduce a share so there is a balance for the final payment. Billing is off until then.
@@ -206,9 +216,52 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
             Quote PDF attached to {rows.find(r => r.pdfAttachedAt).xeroInvoiceNumber} in Xero.
           </span>
         )}
-        {(dirty || !saved) && !s.overAllocated && (
+        {(dirty || !saved || byClaims) && !s.overAllocated && (
           <span style={{ fontSize: font.size.xs, color: color.accent }}>{globalBlock}</span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Several unbilled stages on one invoice, e.g. progress payments 2 and 3 when the work went
+ * faster. Each stage keeps its own amount and records the same invoice. Stages with an
+ * unfinished attempt are left out: their Retry bill handles them.
+ */
+function BillTogether({ rows, amounts, disabled, onBill }) {
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState([]);
+  if (rows.length < 2) return null;
+  const chosen = rows.filter(r => picked.includes(r.key));
+  const total = chosen.reduce((acc, r) => acc + Math.round((amounts.get(r.key) || 0) * 100), 0) / 100;
+  const toggle = key => setPicked(p => (p.includes(key) ? p.filter(k => k !== key) : [...p, key]));
+  if (!open) {
+    return (
+      <div>
+        <button type="button" className="qe-btn" disabled={disabled} onClick={() => setOpen(true)}
+          style={{ ...field, width: 'auto', height: 40, padding: '0 14px', cursor: 'pointer', fontWeight: 600 }}
+        >Bill stages together…</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ border: `1px solid ${color.border}`, borderRadius: radius.md, padding: space.md, display: 'flex', flexDirection: 'column', gap: space.sm }}>
+      <span style={{ fontSize: font.size.sm, fontWeight: 600 }}>Pick the stages to put on one invoice</span>
+      {rows.map(r => (
+        <label key={r.key} style={{ display: 'flex', alignItems: 'center', gap: space.sm, minHeight: 40, fontSize: font.size.sm, cursor: 'pointer' }}>
+          <input type="checkbox" checked={picked.includes(r.key)} onChange={() => toggle(r.key)} style={{ width: 20, height: 20, flexShrink: 0 }} />
+          <span style={{ flex: '1 1 auto', minWidth: 0 }}>{r.name}</span>
+          <span style={{ fontWeight: 600 }}>{formatAmount(amounts.get(r.key) || 0)}</span>
+        </label>
+      ))}
+      <div style={{ display: 'flex', gap: space.sm, flexWrap: 'wrap' }}>
+        <button type="button" className="qe-btn" disabled={disabled || chosen.length < 2} onClick={() => onBill(chosen)}
+          style={{ ...field, width: 'auto', height: 40, padding: '0 14px', cursor: 'pointer', fontWeight: 600, background: color.primary, color: '#fff', borderColor: color.primary, opacity: chosen.length < 2 ? 0.6 : 1 }}
+        >{chosen.length < 2 ? 'Pick at least 2' : `Bill ${chosen.length} stages: ${formatAmount(total)}`}</button>
+        <button type="button" className="qe-btn" onClick={() => { setOpen(false); setPicked([]); }}
+          style={{ ...field, width: 'auto', height: 40, padding: '0 14px', cursor: 'pointer' }}
+        >Cancel</button>
       </div>
     </div>
   );

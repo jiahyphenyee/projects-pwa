@@ -30,19 +30,21 @@ const select = {
  * `finalBilled`: whether the project's final payment is already invoiced. A VO not yet
  * billed is then "Not billed" rather than "On final invoice" — there is no final left.
  */
-export function voStatus(vo, finalBilled = false) {
-  if (vo.xeroInvoiceId && vo.settledOnStageId) return { label: `On final · ${vo.xeroInvoiceNumber}`, style: badge(color.successLight, color.success) };
+export function voStatus(vo, finalBilled = false, byClaims = false) {
+  const onClaim = String(vo.settledOnStageId || '').startsWith('CLM-');
+  if (vo.xeroInvoiceId && vo.settledOnStageId) return { label: `${onClaim ? 'On claim' : 'On final'} · ${vo.xeroInvoiceNumber}`, style: badge(color.successLight, color.success) };
   if (vo.xeroInvoiceId) return { label: `Billed · ${vo.xeroInvoiceNumber}`, style: badge(color.successLight, color.success) };
   if (vo.status === 'error') return { label: 'Billing failed — retry', style: badge(color.dangerLight, color.danger) };
   if (vo.status === 'sending') return { label: 'Billing unfinished — retry', style: badge(color.accentLight, color.accent) };
   if (finalBilled) return { label: 'Not billed', style: badge('#EEF1F3', color.muted) };
+  if (byClaims) return { label: 'For a progress claim', style: badge(color.accentLight, color.accent) };
   return { label: 'On final invoice', style: badge(color.accentLight, color.accent) };
 }
 
 /** "−500.00" for an omission, "800.00" for an addition. */
 const signed = n => (n < 0 ? `−${formatAmount(-n)}` : formatAmount(n));
 
-export function VariationOrderList({ vos, onOpen, onNew, canAdd, finalBilled = false }) {
+export function VariationOrderList({ vos, onOpen, onNew, canAdd, finalBilled = false, byClaims = false }) {
   return (
     <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: `${space.md}px ${space.lg}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: space.sm }}>
@@ -50,7 +52,7 @@ export function VariationOrderList({ vos, onOpen, onNew, canAdd, finalBilled = f
         <span style={{ fontSize: font.size.xs, color: color.muted }}>Additions and omissions. Each settles on the final invoice unless billed early.</span>
       </div>
       {vos.map(vo => {
-        const st = voStatus(vo, finalBilled);
+        const st = voStatus(vo, finalBilled, byClaims);
         const amount = vo.xeroInvoiceId ? vo.billedAmount : vo.contractSum;
         return (
           <button key={vo.id} type="button" className="qe-btn" onClick={() => onOpen(vo.id)}
