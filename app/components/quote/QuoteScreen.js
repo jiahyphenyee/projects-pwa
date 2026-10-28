@@ -43,7 +43,7 @@ export default function QuoteScreen({ code, voId }) {
   const [stages, setStages]     = useState([]);
   const [voTitle, setVoTitle]   = useState('');      // VO only: its line on the final invoice
   const [voReason, setVoReason] = useState('');      // VO only: extra work / omitted / changed / goodwill
-  const [billing, setBilling]   = useState(null);    // { stage } or { vo: true }: the confirm step open
+  const [billing, setBilling]   = useState(null);    // { stages } or { vo: true }: the confirm step open
   const [saved, setSaved]       = useState('');      // snapshot of the last loaded/saved state
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -352,7 +352,7 @@ export default function QuoteScreen({ code, voId }) {
                     rows={stages} onChange={setStages} contractSum={totals.contractSum}
                     vos={data.variationOrders || []}
                     dirty={dirty} saved={!!data.quote} disabled={saving}
-                    onBill={st => setBilling({ stage: st })}
+                    onBill={list => setBilling({ stages: list })}
                     quoteId={data.quote?.id} onAttached={() => load()}
                   />
                   <VariationOrderList
@@ -402,8 +402,8 @@ export default function QuoteScreen({ code, voId }) {
       )}
       {billing && data?.quote && (
         <BillConfirm
-          quoteId={data.quote.id} stage={billing.stage}
-          title={billing.stage ? `Bill ${billing.stage.name}` : `Bill variation order VO${data.quote.voNumber}`}
+          quoteId={data.quote.id} stages={billing.stages}
+          title={billing.stages ? `Bill ${billing.stages.map(st => st.name).join(' + ')}` : `Bill variation order VO${data.quote.voNumber}`}
           onClose={() => setBilling(null)}
           onBilled={() => load()}
         />
