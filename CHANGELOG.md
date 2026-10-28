@@ -14,6 +14,7 @@ version and date and open a fresh one above.
 ## Unreleased
 
 [Added]
+- Tap a cost to see its receipt (streamed from the expense's Xero bill, never stored), full description and details, and mark it billed in the project invoice or billed direct on a picked Xero invoice (`invoice_ref`); long descriptions cut to two lines, and the cost total split by how it was billed.
 - Xero invoices on the project screen show each invoice's payment stage, a PDF download, and drafts (greyed, never counted); a new Invoices screen links invoices matching cannot place, stored in the new `Xero links` tab (`scripts/setup-xero-links-tab.mjs`).
 - Project screen splits cost to date into materials, subcon, own labour and transport, with receipted against non-receipted underneath.
 - Admins see quoted, profit, margin, budget used, invoiced and outstanding on the project screen, with an On track / Watch / Over budget (or Healthy / Below target / Loss once closed) flag.

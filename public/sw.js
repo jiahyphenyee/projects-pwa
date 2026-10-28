@@ -4,7 +4,7 @@
 // Bump CACHE_VERSION on any change to this file — the name is what invalidates old
 // caches, and a stale shell paired with fresh chunks is the classic PWA failure.
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const CACHE = `projects-pwa-${CACHE_VERSION}`;
 
 // Screens worth having available cold. Data still comes from the API caches below.
@@ -82,6 +82,8 @@ self.addEventListener('fetch', event => {
   // Invoice PDFs come live from Xero. A cached copy offline could be a draft that has
   // since changed, with nothing to say it is stale — so never cache them.
   if (url.pathname.startsWith('/api/invoices/pdf')) return;
+  // Receipts come from Xero on demand and are never kept by the app
+  if (url.pathname.startsWith('/api/costs/receipt')) return;
 
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirst(request));
