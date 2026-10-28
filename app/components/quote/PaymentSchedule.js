@@ -73,7 +73,7 @@ export function computeSchedule(rows, contractSum, vos = []) {
   return { ...s, finalNegative, amounts, final: detail };
 }
 
-export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached }) {
+export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached, byClaims = false }) {
   const s = computeSchedule(rows, contractSum, vos);
   const nextKey = rows.find(r => !r.billed && (s.amounts.get(r.key) || 0) > 0)?.key;
   const set = (key, change) => onChange(rows.map(r => (r.key === key ? { ...r, ...change } : r)));
@@ -88,7 +88,8 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
   }
 
   // Why "Bill now" is off for every stage, if it is. Per-stage reasons are in the button title.
-  const globalBlock = !saved ? 'Save the quote before billing.'
+  const globalBlock = byClaims ? 'This job is billed by progress claims now, so the stages are switched off.'
+    : !saved ? 'Save the quote before billing.'
     : dirty ? 'Save your changes before billing.'
     : s.overAllocated ? 'The stages add up to more than 100%.'
     : s.finalNegative ? (s.final?.balance >= 0 ? 'The omissions come to more than what is left to bill.' : 'The contract sum is less than what has already been billed.')
@@ -215,7 +216,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
             Quote PDF attached to {rows.find(r => r.pdfAttachedAt).xeroInvoiceNumber} in Xero.
           </span>
         )}
-        {(dirty || !saved) && !s.overAllocated && (
+        {(dirty || !saved || byClaims) && !s.overAllocated && (
           <span style={{ fontSize: font.size.xs, color: color.accent }}>{globalBlock}</span>
         )}
       </div>
