@@ -105,8 +105,8 @@ export default function CostDetail({ line, projectCode, busy, onClose, onBilling
 
         <section aria-label="Billing" style={{ display: 'flex', flexDirection: 'column', gap: space.xs }}>
           <span style={{ fontSize: font.size.sm, fontWeight: 600 }}>Billing</span>
-          <Choice checked={mode === 'none' && !direct} disabled={busy} onChange={() => { setDirect(false); onBilling(false, ''); }}>Not billed yet</Choice>
-          <Choice checked={mode === 'project' && !direct} disabled={busy} onChange={() => { setDirect(false); onBilling(true, ''); }}>Billed in project invoice</Choice>
+          <Choice checked={mode === 'none' && !direct} disabled={busy} onChange={() => { setDirect(false); setPick(''); onBilling(false, ''); }}>Not billed yet</Choice>
+          <Choice checked={mode === 'project' && !direct} disabled={busy} onChange={() => { setDirect(false); setPick(''); onBilling(true, ''); }}>Billed in project invoice</Choice>
           <Choice checked={direct} disabled={busy} onChange={() => { setDirect(true); loadInvoices(); }}>Billed direct to client (its own invoice)</Choice>
           {direct && (
             <div style={{ paddingLeft: 30, display: 'flex', flexDirection: 'column', gap: space.xs }}>
@@ -117,7 +117,7 @@ export default function CostDetail({ line, projectCode, busy, onClose, onBilling
                 : (
                   <select value={pick} disabled={busy} aria-label="Xero invoice"
                     onChange={e => { setPick(e.target.value); if (e.target.value) onBilling(true, e.target.value); }}
-                    style={{ height: 44, fontSize: font.size.sm, borderRadius: radius.sm, border: `1px solid ${color.border}`, padding: '0 8px', background: color.surface, maxWidth: '100%' }}>
+                    style={{ height: 44, fontSize: 16, borderRadius: radius.sm, border: `1px solid ${color.border}`, padding: '0 30px 0 10px', maxWidth: '100%', appearance: 'none', WebkitAppearance: 'none', background: `${color.surface} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23667085' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 10px center` }}>
                     <option value="">Choose the invoice…</option>
                     {invoices.list.map(i => (
                       <option key={i.id} value={i.number}>{i.number} · {formatIsoDate(i.date)} · ${Number(i.total).toFixed(2)}</option>
