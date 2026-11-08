@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { COST_TYPES, DEFAULT_COST_TYPE } from '@/lib/constants';
 import { todayLocal } from '@/lib/dates';
+import { costQuoteId } from '@/lib/quoteCosting.mjs';
+import { quoteLabel } from '@/lib/quoteGroups.mjs';
 import { button, color, dateInput, font, input, radius, space } from '@/lib/theme';
 
 /**
@@ -23,6 +25,9 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
   // String(null) would prefill the field with the word "null"
   const [amount, setAmount]     = useState(cost?.amount ?? '');
   const [categories, setCats]   = useState([]);
+  // The project's quotes, for the Quote field; '' = counted by trade (lib/quoteCosting.mjs)
+  const [quotes, setQuotes]     = useState([]);
+  const [quoteId, setQuoteId]   = useState(cost?.quoteId || '');
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError]       = useState('');
@@ -32,7 +37,16 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
       .then(r => r.json())
       .then(d => setCats(d.categories || []))
       .catch(() => setCats([]));
-  }, []);
+    fetch(`/api/quotes?project=${encodeURIComponent(project.code)}`)
+      .then(r => r.json())
+      .then(d => setQuotes((d.quotes || []).filter(q => q.kind === 'quote')))
+      .catch(() => setQuotes([]));
+  }, [project.code]);
+  // Where "Automatic" puts this cost now, so the choice is never a guess
+  const byTrade = quotes.length
+    ? costQuoteId({ categoryCode: category }, quotes.map(q => ({ quoteId: q.id, trade: q.trade, declined: q.clientStatus === 'declined' })))
+    : '';
+  const byTradeLabel = byTrade ? quoteLabel(quotes.find(q => q.id === byTrade)) : 'not on a quote';
 
   const amountValue = parseFloat(String(amount).replace(/,/g, ''));
   const busy = saving || deleting;
@@ -47,13 +61,16 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
         method:  editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(editing
-          ? { id: cost.id, date, costType, categoryCode: category, description, amount: amountValue }
+          // The Quote only when changed here: a form opened from an older copy of the
+          // list must not blank a pick made since
+          ? { id: cost.id, date, costType, categoryCode: category, description, amount: amountValue,
+              ...(quoteId !== (cost.quoteId || '') ? { quoteId } : {}) }
           : {
               projectCode: project.code,
               displayAddress: project.address,
               date, costType, categoryCode: category,
               description, amount: amountValue,
-              createdBy: userName,
+              createdBy: userName, quoteId,
             }),
       });
       const data = await res.json();
@@ -142,6 +159,15 @@ export default function CostForm({ project, userName, cost, onSaved, onCancel, o
           ))}
         </select>
       </Field>
+
+      {quotes.length > 0 && (
+        <Field label="Quote" hint="Which quote this cost counts towards on the Summary.">
+          <select value={quoteId} onChange={e => setQuoteId(e.target.value)} style={input}>
+            <option value="">Automatic, by category ({byTradeLabel})</option>
+            {quotes.map(q => <option key={q.id} value={q.id}>{quoteLabel(q)}</option>)}
+          </select>
+        </Field>
+      )}
 
       {/* Last: it is the only field already answered on arrival, and the one a person is
           least likely to change. */}

@@ -789,3 +789,7 @@ Each verified against the live workbook, not inferred.
 ---
 
 *Keep this file with the main workbook. Update §21 and §22 whenever the system changes.*
+
+
+### Project costs O `quote_id` (2026-11-08)
+The quote a cost counts towards when picked by hand on the cost (Quote field). Blank = by trade: the first quote on the project, not declined, whose `trade` equals the cost's `category_code`; none → "Not on a quote" on the Summary. Added by `scripts/setup-quote-billing-tabs.mjs` step 5; `lib/costs.js` asserts the header, so run the script before deploying.

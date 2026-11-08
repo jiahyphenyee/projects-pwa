@@ -4,6 +4,7 @@ Every pull request William (or Claude on his behalf) opens, newest first. Jia Ye
 
 | Date | Branch | What | Status |
 |---|---|---|---|
+| 2026-11-08 | william/quote-costing | [schema] Quotes table on the Summary; Quote field on costs (Project costs O quote_id) | Open for review |
 | 2026-11-08 | william/several-quotes-screens | Several quotes per project, screens: quote tabs, name and trade, per-quote billing panel (on top of several-quotes) | Open for review |
 | 2026-11-08 | william/several-quotes | [schema] Several quotes per project, server side: Quotes AD:AF, VOs per quote, per-quote billing summary | Open for review |
 | 2026-11-08 | william/live-billed-amounts | Billed amounts read live from Xero (edited, voided, shared-invoice mismatch); "outside this quote" figure on the Summary (on top of bill-in-full-default) | Open for review |

@@ -17,6 +17,8 @@
 //   4. Appends `property_type` to Projects (column M) and `xero_tracking_option` to
 //      Categories (column E), filling the latter from the map the expense app hard-codes
 //      today so both apps can read one list.
+//   5. Appends `quote_id` to Project costs (column O): the quote a cost counts towards
+//      when picked by hand on the cost (2026-11-08).
 //
 // Columns are only ever appended, never inserted: both PWAs read Projects and Categories
 // by index. System config rows are found by key in every app, so deleting rows there is
@@ -26,6 +28,7 @@ import { google } from 'googleapis';
 import {
   QUOTE_TAB_SPECS, QUOTE_CONFIG_DEFAULTS, OBSOLETE_TABS, OBSOLETE_CONFIG_KEYS,
   PROJECTS_PROPERTY_TYPE_HEADER, CATEGORIES_TRACKING_HEADER, CATEGORY_TO_TRACKING,
+  PROJECT_COSTS_QUOTE_HEADER,
 } from '../lib/quoteSchema.mjs';
 
 try { process.loadEnvFile('.env.local'); } catch {}
@@ -198,4 +201,5 @@ props = await tabProps();
 await appendHeader(props, 'Projects', PROJECTS_PROPERTY_TYPE_HEADER);
 const trackingCol = await appendHeader(props, 'Categories', CATEGORIES_TRACKING_HEADER);
 await fillCategoryTracking(trackingCol);
+await appendHeader(props, 'Project costs', PROJECT_COSTS_QUOTE_HEADER);
 log('done');
