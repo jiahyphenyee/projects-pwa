@@ -35,6 +35,7 @@ A Google Sheets workbook (id in `GOOGLE_SHEET_ID`) is the single source of truth
 | `lib/invoiceMatching.js` | One parallel read of everything invoice→project matching needs: documents, project addresses, manual links, the billed-invoice index. |
 | `lib/progressClaims.mjs` | Progress-claim figures and the claim invoice (% done × contract sum − billed on the quote, + VOs at full amount). Pure, tested. |
 | `lib/claimBilling.js` | Making and retrying a progress claim: same protections as stage billing (claim row written `sending:<token>` before Xero, read back after a pause; Idempotency-Key; line-checked adoption; claim + VOs recorded in one write). |
+| `lib/quoteGroups.mjs` | Several quotes per project: a project's quotes, its first, a VO's quote (`parent_quote_id`, else the first), a quote's VOs. Pure, tested. |
 | `lib/liveBilled.mjs` | Billed figures as Xero has them now: overlays stages, VOs and claims with each invoice's current total (edited → new figure; voided or deleted → the row is unbilled again; several stages on one changed invoice → flagged, never split). Pure, tested; `lib/quotes.js liveBilled()` reads Xero (re-reading once if an invoice is missing from the 10-minute cache) and never throws. Overlaid rows are read-only: `lib/billing.js` writes from `readQuoteStages()`. |
 | `lib/stageSelection.mjs` | Which stages one invoice may cover (billed together), and the retry rule for an unfinished attempt. Pure, tested. |
 | `lib/clientAcceptance.mjs` | The client's answer to a quote or VO and the billing rule it sets. Pure, tested. |

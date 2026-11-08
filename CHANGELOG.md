@@ -14,6 +14,7 @@ version and date and open a fresh one above.
 ## Unreleased
 
 [Added]
+- Several quotes per project (server side): new Quotes columns `title` (AD), `trade` (AE), `parent_quote_id` (AF), added by `scripts/setup-quote-billing-tabs.mjs`; a VO belongs to its quote (older VOs to the project's first); the quote screen API takes `quote=` and `parent=`; the billing summary is per quote.
 - The final payment invoice lists every quote line (qty, unit price, Service), less the discount and stages already billed, plus VOs; if the lines do not add up to the amount due, billing is blocked with the reason instead.
 - Tap a cost to see its receipt (streamed from the expense's Xero bill, never stored), full description and details, and mark it billed in the project invoice or billed direct on a picked Xero invoice (`invoice_ref`); long descriptions cut to two lines, and the cost total split by how it was billed.
 - Progress claims on the quote screen: bill % done × contract sum less what is already billed, plus ticked accepted VOs at full amount; the new `Progress claims` tab (created by `scripts/setup-quote-billing-tabs.mjs`); stages switch off after the first claim.

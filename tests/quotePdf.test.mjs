@@ -63,6 +63,8 @@ test('file names: HFCQuote_v<n>_<address>, HFCVO<n>_<address>', () => {
   assert.equal(quoteFileName({ kind: 'vo', voNumber: 3, address }), 'HFCVO3_Blk 123 Ang Mo Kio Ave 3 05-12.pdf');
   assert.equal(quoteFileName({ kind: 'quote', issueVersion: 1, address: '12 A/B Road: unit "7"' }), 'HFCQuote_v1_12 A-B Road- unit -7-.pdf');
   assert.equal(quoteFileName({ prefix: 'XYZ', kind: 'quote', issueVersion: 1, address: '' }), 'XYZQuote_v1.pdf');
+  assert.equal(quoteFileName({ kind: 'quote', issueVersion: 1, address, title: 'Aircon works' }), 'HFCQuote_v1_Aircon works_Blk 123 Ang Mo Kio Ave 3 05-12.pdf');
+  assert.equal(quoteFileName({ kind: 'vo', voNumber: 2, address, title: 'ignored' }), 'HFCVO2_Blk 123 Ang Mo Kio Ave 3 05-12.pdf');
 });
 
 test('validity prints only when set', async () => {

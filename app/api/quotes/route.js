@@ -3,7 +3,8 @@
 //   GET  /api/quotes?id=Q-0001          → { quote, lines, project, schedule }
 //   GET  /api/quotes?project=PRJ-042    → { quotes: [...] }
 //   GET  /api/quotes?screen=PRJ-042     → everything the quote screen needs, in one call
-//   GET  /api/quotes?screen=PRJ-042&vo=Q-0007 (or vo=new) → the same for a variation order
+//   GET  /api/quotes?screen=PRJ-042&quote=Q-0011 (or quote=new) → the same for one of the project's quotes
+//   GET  /api/quotes?screen=PRJ-042&vo=Q-0007 (or vo=new&parent=Q-0011) → the same for a variation order
 //   GET  /api/quotes?summary=PRJ-042    → billed and unbilled stages and VOs, for the project screen
 //   POST /api/quotes  { ...saveQuote input }
 //
@@ -24,7 +25,11 @@ export async function GET(req) {
 
     if (screen) {
       const [found, gaps] = await Promise.all([
-        loadQuoteScreen(screen, { voId: searchParams.get('vo') || undefined }),
+        loadQuoteScreen(screen, {
+          voId:     searchParams.get('vo') || undefined,
+          quoteId:  searchParams.get('quote') || undefined,
+          parentId: searchParams.get('parent') || undefined,
+        }),
         pdfSetupGaps().catch(() => []),
       ]);
       if (found && !found.notFound) found.pdfGaps = gaps;
