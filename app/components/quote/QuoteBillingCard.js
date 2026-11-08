@@ -12,10 +12,17 @@ import Panel from '@/app/components/dashboard/Panel';
 import { formatAmount } from '@/app/components/TotalsCard';
 import { color, font } from '@/lib/theme';
 
-/** `summary`: billingSummary() from /api/quotes?summary=, or `{ error }`, or null while loading. */
-export default function QuoteBillingCard({ projectCode, summary }) {
+/**
+ * `summary`: billingSummary() from /api/quotes?summary=, or `{ error }`, or null while loading.
+ * `projectInvoiced`: every Xero invoice matched to the project (the Xero invoices panel's
+ * total); what it exceeds the quote's billed figure by was invoiced outside this quote —
+ * hand-raised in Xero, or for work the quote does not cover — and is said so, since the
+ * quote alone would understate what the client has been asked to pay.
+ */
+export default function QuoteBillingCard({ projectCode, summary, projectInvoiced = null }) {
   const href = `/projects/${encodeURIComponent(projectCode)}/quote`;
   const has = summary && !summary.error && summary.quoteId;
+  const outside = has && projectInvoiced !== null ? Math.round((projectInvoiced - summary.billed) * 100) / 100 : 0;
 
   return (
     <Panel
@@ -29,6 +36,12 @@ export default function QuoteBillingCard({ projectCode, summary }) {
         <p style={{ margin: 0, fontSize: font.size.xs, color: color.danger }}>{summary.error}</p>
       )}
       {!summary && <p style={{ margin: 0, fontSize: font.size.xs, color: color.muted }}>Loading…</p>}
+      {has && summary.liveBilled === false && (
+        <p style={{ margin: 0, fontSize: font.size.xs, color: color.accent }}>Billed amounts could not be refreshed from Xero just now; figures are from when each stage was billed.</p>
+      )}
+      {outside > 0.005 && (
+        <p style={{ margin: 0, fontSize: font.size.xs, color: color.muted }}>Plus ${formatAmount(outside)} invoiced in Xero outside this quote (see Xero invoices).</p>
+      )}
 
       {summary?.items?.map((item, i) => (
         <LineRow
