@@ -125,7 +125,7 @@ export default function ProjectSummaryPage({ params }) {
           {!loading && <ServiceBreakdownCard breakdown={breakdown} settings={dash.settings} />}
 
           <PanelGrid>
-            <QuoteBillingCard projectCode={project.code} summary={dash.billing} />
+            <QuoteBillingCard projectCode={project.code} summary={dash.billing} projectInvoiced={dash.invoiceSummary?.invoiced ?? null} />
             <XeroInvoicesCard code={project.code} address={project.address} summary={dash.invoiceSummary} invoices={dash.invoices} />
             <XeroQuotesCard code={project.code} />
           </PanelGrid>

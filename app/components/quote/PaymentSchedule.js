@@ -13,7 +13,7 @@
 // before 7 Nov 2026 carry four blank stages (Deposit, Progress payment 1–3); those count as
 // no plan and show the bill-in-full card until a share is given.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { scheduleAmounts, finalPaymentDue } from '@/lib/quoteMaths.mjs';
 import { voSettlementDescription } from '@/lib/stageInvoice.mjs';
 import { acceptDecimal } from '@/lib/quoteEditor.mjs';
@@ -40,6 +40,8 @@ export function fromServerStages(stages) {
     sharePct: s.isFinal || s.sharePct === null || s.sharePct === undefined ? '' : String(s.sharePct),
     billed: !!s.xeroInvoiceId, billedAmount: s.billedAmount, xeroInvoiceNumber: s.xeroInvoiceNumber || '',
     xeroSyncStatus: s.xeroSyncStatus || '', billedAt: s.billedAt || '', pdfAttachedAt: s.pdfAttachedAt || '',
+    // Live from Xero (lib/liveBilled.mjs): the figure when billed if Xero now differs, voided, or a shared invoice that changed
+    sheetAmount: s.sheetAmount, voided: s.voided || null, liveMismatch: s.liveMismatch || null,
     // A billed final payment keeps the VO lines it carried; an unbilled one computes them live
     balance: s.balance, settling: s.settling || [],
   }));
@@ -84,14 +86,18 @@ export function computeSchedule(rows, contractSum, vos = []) {
   return { ...s, finalNegative, amounts, final: detail };
 }
 
-export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached, byClaims = false }) {
-  const [showPlan, setShowPlan] = useState(false);
+export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached, byClaims = false, liveBilled = true }) {
+  const [showPlan, setShowPlan] = useState(() => planInUse(rows));
+  // Once a plan is in use it stays on screen while being edited: clearing the only share
+  // must not collapse the card and hide the row being typed in
+  useEffect(() => { if (planInUse(rows)) setShowPlan(true); }, [rows]);
   const s = computeSchedule(rows, contractSum, vos);
   const nextKey = rows.find(r => !r.billed && (s.amounts.get(r.key) || 0) > 0)?.key;
   const set = (key, change) => onChange(rows.map(r => (r.key === key ? { ...r, ...change } : r)));
 
   function addStage() {
-    const name = rows.some(r => !r.isFinal && /^deposit$/i.test(r.name.trim()))
+    // The first stage of a plan is the deposit; after that, numbered progress payments
+    const name = rows.some(r => !r.isFinal)
       ? `Progress payment ${rows.reduce((m, r) => Math.max(m, Number(/^Progress payment (\d+)$/.exec(r.name)?.[1] || 0)), 0) + 1}`
       : 'Deposit';
     const row = { key: stageKey(), id: '', name, sharePct: '', isFinal: false, billed: false };
@@ -121,12 +127,13 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
     : s.finalNegative ? (s.final?.balance >= 0 ? 'The omissions come to more than what is left to bill.' : 'The contract sum is less than what has already been billed.')
     : '';
 
-  if (!planInUse(rows) && !showPlan) {
+  // Billed by progress claims: the plan table stays, as the record of what the stages did
+  if (!planInUse(rows) && !showPlan && !byClaims) {
     return (
       <BillInFull
         final={rows.find(r => r.isFinal)} schedule={s} block={globalBlock} disabled={disabled}
         onBill={r => onBill(retryGroup(rows, r))} onAddPlan={openPlan}
-        quoteId={quoteId} onAttached={onAttached} rows={rows}
+        quoteId={quoteId} onAttached={onAttached} rows={rows} liveBilled={liveBilled}
       />
     );
   }
@@ -188,10 +195,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
                 </div>
                 <div>
                   {r.billed ? (
-                    <span title={r.billedAt ? `Billed ${r.billedAt}` : ''} style={{
-                      display: 'inline-block', padding: '5px 9px', borderRadius: radius.sm, fontSize: font.size.xs,
-                      fontWeight: 600, background: color.successLight, color: color.success,
-                    }}>Billed · {r.xeroInvoiceNumber}</span>
+                    <BilledBadge row={r} />
                   ) : (
                     <button type="button" disabled={disabled || !!stageBlock || !r.id} title={stageBlock || (!r.id ? 'Save the quote first.' : '')}
                       onClick={() => onBill(retryGroup(rows, r))} className="qe-btn"
@@ -249,6 +253,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
               : 'The contract sum is now less than what has already been billed, so the final payment is negative. Billing is off until the quote is fixed.'}
           </div>
         )}
+        <LiveNotes rows={rows} liveBilled={liveBilled} />
         {rows.some(r => r.billed) && !rows.some(r => r.pdfAttachedAt) && (
           <AttachPdf quoteId={quoteId} onAttached={onAttached} />
         )}
@@ -270,7 +275,7 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
  * The final stage is the only stage, so its amount is the contract sum plus any variation
  * orders not billed on their own. Billing goes through the same path as a stage.
  */
-function BillInFull({ final, schedule: s, block, disabled, onBill, onAddPlan, quoteId, onAttached, rows }) {
+function BillInFull({ final, schedule: s, block, disabled, onBill, onAddPlan, quoteId, onAttached, rows, liveBilled }) {
   const amount = final ? (s.amounts.get(final.key) || 0) : 0;
   const stageBlock = block || (!final ? 'Save the quote first.' : !final.id ? 'Save the quote first.' : amount <= 0 ? 'Nothing to bill yet.' : '');
   const billed = !!final?.billed;
@@ -292,10 +297,7 @@ function BillInFull({ final, schedule: s, block, disabled, onBill, onAddPlan, qu
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: space.md, flexWrap: 'wrap' }}>
           {billed ? (
-            <span title={final.billedAt ? `Billed ${final.billedAt}` : ''} style={{
-              display: 'inline-block', padding: '8px 12px', borderRadius: radius.sm, fontSize: font.size.sm,
-              fontWeight: 600, background: color.successLight, color: color.success,
-            }}>Billed in full · {final.xeroInvoiceNumber} · {formatAmount(final.billedAmount ?? amount)}</span>
+            <BilledBadge row={final} large label={`Billed in full · ${final.xeroInvoiceNumber} · ${formatAmount(final.billedAmount ?? amount)}`} />
           ) : (
             <button type="button" disabled={disabled || !!stageBlock} title={stageBlock}
               onClick={() => onBill(final)} className="qe-btn"
@@ -315,6 +317,7 @@ function BillInFull({ final, schedule: s, block, disabled, onBill, onAddPlan, qu
         {!billed && stageBlock && (
           <span style={{ fontSize: font.size.xs, color: s.finalNegative ? color.danger : color.accent }}>{stageBlock}</span>
         )}
+        <LiveNotes rows={rows} liveBilled={liveBilled} />
         {rows.some(r => r.billed) && !rows.some(r => r.pdfAttachedAt) && (
           <AttachPdf quoteId={quoteId} onAttached={onAttached} />
         )}
@@ -367,6 +370,48 @@ function BillTogether({ rows, amounts, disabled, onBill }) {
           style={{ ...field, width: 'auto', height: 40, padding: '0 14px', cursor: 'pointer' }}
         >Cancel</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The "Billed" tag, as Xero has the invoice now: green when it stands as billed, with
+ * "edited in Xero" when its total has changed since, red when it was voided or deleted.
+ */
+function BilledBadge({ row, large = false, label }) {
+  const edited = row.sheetAmount !== undefined;
+  const text = (label || `Billed · ${row.xeroInvoiceNumber}`) + (edited ? ' · edited in Xero' : '');
+  const title = edited ? `Sent as ${formatAmount(row.sheetAmount)}; Xero now has ${formatAmount(row.billedAmount)}.`
+    : row.billedAt ? `Billed ${row.billedAt}` : '';
+  return (
+    <span title={title} style={{
+      display: 'inline-block', padding: large ? '8px 12px' : '5px 9px', borderRadius: radius.sm,
+      fontSize: large ? font.size.sm : font.size.xs, fontWeight: 600,
+      background: color.successLight, color: color.success,
+    }}>{text}</span>
+  );
+}
+
+/** What Xero says that the Sheet does not: a shared invoice whose total changed, or no Xero at all. */
+function LiveNotes({ rows, liveBilled }) {
+  const mismatches = [...new Map(rows.filter(r => r.liveMismatch).map(r => [r.liveMismatch.invoiceNumber, r.liveMismatch])).values()];
+  const voided = rows.filter(r => r.voided);
+  if (liveBilled && !mismatches.length && !voided.length) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {voided.map(r => (
+        <span key={r.key} role="alert" style={{ fontSize: font.size.xs, color: color.danger }}>
+          {r.name} was billed as {r.voided.invoiceNumber || 'an invoice'} ({formatAmount(r.voided.amount)}), which has since been voided or deleted in Xero. It counts as not billed and can be billed again.
+        </span>
+      ))}
+      {!liveBilled && (
+        <span style={{ fontSize: font.size.xs, color: color.accent }}>Billed amounts could not be refreshed from Xero just now; the figures shown are from when each stage was billed.</span>
+      )}
+      {mismatches.map(m => (
+        <span key={m.invoiceNumber} role="alert" style={{ fontSize: font.size.xs, color: color.danger }}>
+          {m.invoiceNumber} is {formatAmount(m.xeroTotal)} in Xero, but the stages on it were billed as {formatAmount(m.sheetTotal)} together. The app cannot tell which stage changed, so the billed figures stand until the invoice is put back or the stages are re-billed.
+        </span>
+      ))}
     </div>
   );
 }
