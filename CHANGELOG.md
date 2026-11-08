@@ -80,6 +80,7 @@ version and date and open a fresh one above.
 - Only `admin`, `boss_man` and `office` PINs can sign in; any other role is refused at login, and billing re-checks the PIN's role on the server.
 
 [Fixed]
+- Billed amounts come from Xero as the invoice stands now, not from the figure stored at billing: an unpaid invoice edited in Xero changes the final balance and the Summary accordingly; a stage whose invoice was voided or deleted in Xero counts as not billed and can be billed again; an invoice shared by several stages whose total changed is flagged rather than guessed. The Summary's billing panel also says what was invoiced in Xero outside the quote.
 - The project dashboard no longer runs into the Google Sheets read quota: the Xero client keeps its access token in memory instead of re-reading System config on every Xero call.
 - Project costs were read one column out: amounts appeared as the row's label, every total read 0.00, and invoiced costs showed as unbilled.
 - Adding, editing and ticking a cost work again — every write to `Project costs` was landing past the last column and being rejected.

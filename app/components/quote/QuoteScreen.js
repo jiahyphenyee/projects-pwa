@@ -357,6 +357,7 @@ export default function QuoteScreen({ code, voId }) {
                     onBill={list => setBilling({ stages: list })}
                     quoteId={data.quote?.id} onAttached={() => load()}
                     byClaims={(data.claims || []).some(claimCounts)}
+                    liveBilled={data.liveBilled !== false}
                   />
                   {data.quote && (
                     <ProgressClaims
