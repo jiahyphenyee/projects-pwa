@@ -399,7 +399,7 @@ headers are declared once in `lib/quoteSchema.mjs` and asserted on first use.
 `discount_mode` (`$` | `%`) · `discount_value` · `subtotal` · `contract_sum` · `status` ·
 `current_version` · `next_line_no` · `xero_invoice_id` · `xero_invoice_number` ·
 `billed_amount` · `billed_at` · `billed_by` · `created_at` · `created_by` · `updated_at` ·
-`updated_by` · `issue_version` (W, blank = 1). One `quote` per project; VOs numbered per project.
+`updated_by` · `issue_version` (W, blank = 1) · … · `client_accepted_at` (AC) · `title` (AD) · `trade` (AE) · `parent_quote_id` (AF). **New 2026-11-08: several `quote` rows per project**, one per agreed piece of work ("Aircon works"); `title` names it, `trade` is a Categories code. A VO belongs to the quote in its `parent_quote_id`; blank (every VO before 2026-11-08) = the project's first quote by id. VOs are still numbered per project. AD:AF are written by a quote save next to A:Z; the client answer AA:AC is still written only by setClientStatus().
 `issue_version` is the client-facing v1, v2… on the quote PDF, raised by hand from the quote
 screen; `current_version` counts every save and is never shown. VOs are not versioned.
 
