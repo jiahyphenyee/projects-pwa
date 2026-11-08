@@ -20,6 +20,7 @@ import ServiceBreakdownCard from '@/app/components/project/ServiceBreakdownCard'
 import XeroInvoicesCard from '@/app/components/project/XeroInvoicesCard';
 import LatestCostsPanel from '@/app/components/project/LatestCostsPanel';
 import QuoteBillingCard from '@/app/components/quote/QuoteBillingCard';
+import QuoteCostingCard from '@/app/components/project/QuoteCostingCard';
 import XeroQuotesCard from '@/app/components/project/XeroQuotesCard';
 import { useProjects } from '@/lib/useProjects';
 import { useProjectCosts } from '@/lib/useProjectCosts';
@@ -30,6 +31,8 @@ import { GENERAL_PROJECT_CODE } from '@/lib/constants';
 import { PERMISSIONS } from '@/lib/roles.mjs';
 import { describeAge } from '@/lib/localCache';
 import { costSplit, serviceBreakdown, projectFigures, possibleDuplicates } from '@/lib/projectFigures.mjs';
+import { quoteTable } from '@/lib/quoteCosting.mjs';
+import { todaySingapore } from '@/lib/dates';
 import { card, color, font, radius, space } from '@/lib/theme';
 
 const banner = tone => ({
@@ -69,6 +72,14 @@ export default function ProjectSummaryPage({ params }) {
   const breakdown  = useMemo(
     () => serviceBreakdown(lines, dash.quote?.hasQuote ? dash.quote.byService : null),
     [lines, dash.quote]
+  );
+  // Per quote: needs the billing summary's quotes; invoices join in once Xero has answered
+  const quotes = dash.billing?.quotes;
+  const byQuote = useMemo(
+    () => (quotes?.length ? quoteTable({
+      quotes, lines, docs: dash.invoices?.docs || [], today: todaySingapore(), settings: dash.settings,
+    }) : null),
+    [quotes, lines, dash.invoices, dash.settings]
   );
   const figures = dash.loaded && project
     ? projectFigures({
@@ -121,6 +132,8 @@ export default function ProjectSummaryPage({ params }) {
           />
 
           <CostSplitPanel split={split} />
+
+          {!loading && byQuote && <QuoteCostingCard table={byQuote} code={project.code} />}
 
           {!loading && <ServiceBreakdownCard breakdown={breakdown} settings={dash.settings} />}
 
