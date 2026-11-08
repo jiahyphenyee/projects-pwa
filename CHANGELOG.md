@@ -55,6 +55,7 @@ version and date and open a fresh one above.
 - The unused `Invoices`, `Payments`, `Payment allocations` and `Reports` tabs and their config keys, replaced by the quote tabs. Nothing read them.
 
 [Changed]
+- A quote is billed in full by default: the quote screen shows one "Bill in full" button and no payment plan; "+ Add deposit or stages" reveals the plan, and a plan with no shares can be removed again. New quotes start with the final payment alone; the Summary no longer lists blank $0 stages.
 - Variation orders now settle on the final payment invoice by default, one "Add:" or "Less:" line each after the balance line; an addition can still be billed early with "Bill now" and then stays off the final, an omission cannot be billed on its own, and a new omission is refused once the final invoice is issued.
 - A project now has two views: a wide **Summary** dashboard for admins (headline tiles, cost split, by-service table, billing and Xero invoices side by side, latest costs) and the phone-first **Costs** list; everyone else lands on Costs.
 - "Total project cost" is now "Cost to date" in the project summary, and receipted expenses are typed by the expense app's new `cost_type` column (T).
