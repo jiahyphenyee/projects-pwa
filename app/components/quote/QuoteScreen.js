@@ -3,13 +3,17 @@
 // The quote screen and the variation order screen: one component, so a VO is edited with
 // exactly the same editor as the quote (the plan's "reuse the editor; do not copy it").
 //
-//   <QuoteScreen code="PRJ-042" />                 the project's quote and its payment schedule
-//   <QuoteScreen code="PRJ-042" voId="Q-0007" />   a saved variation order
-//   <QuoteScreen code="PRJ-042" voId="new" />      a blank variation order, numbered on first save
+//   <QuoteScreen code="PRJ-042" />                    the project's first quote and its billing
+//   <QuoteScreen code="PRJ-042" quoteId="Q-0011" />   one of the project's quotes ("new" for a blank one)
+//   <QuoteScreen code="PRJ-042" voId="Q-0007" />      a saved variation order
+//   <QuoteScreen code="PRJ-042" voId="new" parentId="Q-0011" />  a blank VO on that quote, numbered on first save
+//
+// A project holds several quotes, one per agreed piece of work; tabs along the top switch
+// between them and "+ New quote" starts another.
 //
 // Editing is local; Sheets is touched only on Save.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/app/components/AppShell';
 import LineEditor, { qtyOf, priceOf } from '@/app/components/quote/LineEditor';
@@ -26,15 +30,17 @@ import { quoteTotals } from '@/lib/quoteMaths.mjs';
 import { attemptInFlight } from '@/lib/clientAcceptance.mjs';
 import { blankItem, fromServerLines, toSavePayload, snapshot } from '@/lib/quoteEditor.mjs';
 import { buildMemory } from '@/lib/priceMemory.mjs';
+import { quoteLabel } from '@/lib/quoteGroups.mjs';
 import { button, card, color, font, radius, space } from '@/lib/theme';
 
 const NO_DISCOUNT = { on: false, mode: '$', value: '' };
 
-export default function QuoteScreen({ code, voId }) {
+export default function QuoteScreen({ code, voId, quoteId, parentId }) {
   const router = useRouter();
   const isVo = !!voId;
   const projectHref = `/projects/${encodeURIComponent(code)}`;
   const quoteHref = `${projectHref}/quote`;
+  const hrefOf = id => `${quoteHref}/${encodeURIComponent(id)}`;
 
   const [user, setUser]         = useState(null);
   const [data, setData]         = useState(null);    // the screen payload from the server
@@ -45,6 +51,8 @@ export default function QuoteScreen({ code, voId }) {
   const [stages, setStages]     = useState([]);
   const [voTitle, setVoTitle]   = useState('');      // VO only: its line on the final invoice
   const [voReason, setVoReason] = useState('');      // VO only: extra work / omitted / changed / goodwill
+  const [qTitle, setQTitle]     = useState('');      // quote only: its name, e.g. "Aircon works"
+  const [qTrade, setQTrade]     = useState('');      // quote only: its Categories code
   const [billing, setBilling]   = useState(null);    // { stages } | { claim } | { vo: true }: the confirm step open
   const [saved, setSaved]       = useState('');      // snapshot of the last loaded/saved state
   const [loading, setLoading]   = useState(true);
@@ -71,8 +79,8 @@ export default function QuoteScreen({ code, voId }) {
   );
 
   const current = useCallback(
-    () => snapshot(rows, { u: showUnit, d: discount.on ? [discount.mode, discount.value] : null, t: propertyType, s: stageShape(stages), v: [voTitle, voReason] }),
-    [rows, showUnit, discount, propertyType, stages, voTitle, voReason]
+    () => snapshot(rows, { u: showUnit, d: discount.on ? [discount.mode, discount.value] : null, t: propertyType, s: stageShape(stages), v: [voTitle, voReason], n: [qTitle, qTrade] }),
+    [rows, showUnit, discount, propertyType, stages, voTitle, voReason, qTitle, qTrade]
   );
   const dirty = !!data && current() !== saved;
 
@@ -89,6 +97,7 @@ export default function QuoteScreen({ code, voId }) {
     const nextType = payload.project?.propertyType || '';
     const nextStages = payload.schedule?.stages?.length ? fromServerStages(payload.schedule.stages) : defaultStages();
     const nextVo = [q?.voTitle || '', q?.voReason || ''];
+    const nextName = [q?.title || '', q?.trade || ''];
     setData(payload);
     setStages(nextStages);
     setRows(nextRows);
@@ -97,27 +106,38 @@ export default function QuoteScreen({ code, voId }) {
     setType(nextType);
     setVoTitle(nextVo[0]);
     setVoReason(nextVo[1]);
-    setSaved(snapshot(nextRows, { u: nextUnit, d: nextDiscount.on ? [nextDiscount.mode, nextDiscount.value] : null, t: nextType, s: stageShape(nextStages), v: nextVo }));
+    setQTitle(nextName[0]);
+    setQTrade(nextName[1]);
+    setSaved(snapshot(nextRows, { u: nextUnit, d: nextDiscount.on ? [nextDiscount.mode, nextDiscount.value] : null, t: nextType, s: stageShape(nextStages), v: nextVo, n: nextName }));
   }, []);
 
+  // Switching quotes quickly starts several loads; only the latest may fill the screen
+  const lastLoad = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++lastLoad.current;
     setLoading(true);
     setError('');
+    setNotice('');
     try {
       // cache: 'no-store' so the service worker's cached copy is never mistaken for live
-      const qs = new URLSearchParams({ screen: code, ...(voId ? { vo: voId } : {}) });
+      const qs = new URLSearchParams({
+        screen: code,
+        ...(voId ? { vo: voId } : {}),
+        ...(quoteId ? { quote: quoteId } : {}),
+        ...(parentId ? { parent: parentId } : {}),
+      });
       const res = await fetch(`/api/quotes?${qs}`, { cache: 'no-store' });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.error || 'Could not load the quote');
       // A VO is only for a project that has a quote: its type and client come from there
       if (voId && !payload.project) throw new Error('No such project');
-      adopt(payload);
+      if (mine === lastLoad.current) adopt(payload);
     } catch (err) {
-      setError(err instanceof TypeError ? 'Offline — the quote cannot be loaded' : err.message);
+      if (mine === lastLoad.current) setError(err instanceof TypeError ? 'Offline — the quote cannot be loaded' : err.message);
     } finally {
-      setLoading(false);
+      if (mine === lastLoad.current) setLoading(false);
     }
-  }, [code, voId, adopt]);
+  }, [code, voId, quoteId, parentId, adopt]);
 
   useEffect(() => { if (canQuote) load(); }, [canQuote, load]);
 
@@ -169,6 +189,9 @@ export default function QuoteScreen({ code, voId }) {
           discountValue: discount.on && discount.value !== '' ? Number(discount.value) : null,
           voTitle:       isVo ? voTitle.trim() : undefined,
           voReason:      isVo ? voReason : undefined,
+          title:         isVo ? undefined : qTitle.trim(),
+          trade:         isVo ? undefined : qTrade,
+          parentQuoteId: isVo && !data.quote ? data.parentQuote?.id : undefined,
           stages:        isVo ? undefined : stages.map(st => ({
             id: st.id || undefined, name: st.name.trim(), isFinal: st.isFinal,
             sharePct: st.isFinal || st.sharePct === '' ? null : Number(st.sharePct),
@@ -180,8 +203,9 @@ export default function QuoteScreen({ code, voId }) {
       if (!res.ok) throw new Error(result.error || 'Could not save the quote');
       adopt({ ...data, ...result, project: result.project || data.project });
       const items = result.lines.filter(l => l.kind === 'item').length;
-      // A new VO has its number now; move to its own address so a refresh reopens it
+      // A new VO or quote has its id now; move to its own address so a refresh reopens it
       if (isVo && voId === 'new') router.replace(`${quoteHref}/vo/${encodeURIComponent(result.quote.id)}`);
+      if (!isVo && !data.quote) router.replace(hrefOf(result.quote.id));
       setNotice(
         `Saved ${isVo ? `VO${result.quote.voNumber}` : result.quote.id}: ${items} line${items === 1 ? '' : 's'}, added to price history as ${propertyType} quotes.` +
         (payload.dropped ? ` ${payload.dropped} empty row${payload.dropped === 1 ? ' was' : 's were'} left out.` : '') +
@@ -226,8 +250,10 @@ export default function QuoteScreen({ code, voId }) {
   const answerLocked = isVo
     ? locked || attemptInFlight(data?.quote)
     : !!data?.schedule?.stages?.some(st => st.xeroInvoiceId || attemptInFlight(st));
-  const title = !isVo ? 'Quote and billing'
+  const title = !isVo ? (data?.quote ? quoteLabel({ ...data.quote, title: qTitle }) : 'New quote')
     : data?.quote ? `Variation order VO${data.quote.voNumber}` : 'New variation order';
+  // A VO goes back to its own quote; a quote to the project
+  const voBackHref = data?.parentQuote ? hrefOf(data.parentQuote.id) : quoteHref;
   const subtitle = project ? `${project.address} · ${project.code}` : code;
 
   if (user && !canQuote) {
@@ -243,7 +269,7 @@ export default function QuoteScreen({ code, voId }) {
       layout="editor"
       title={title}
       subtitle={subtitle}
-      onBack={() => leaveIfSafe(() => router.push(isVo ? quoteHref : backHref))}
+      onBack={() => leaveIfSafe(() => router.push(isVo ? voBackHref : backHref))}
       actions={
         <button
           type="button" onClick={() => leaveIfSafe(load)} disabled={loading || saving}
@@ -266,6 +292,37 @@ export default function QuoteScreen({ code, voId }) {
 
       {data && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: space.lg }}>
+          {!isVo && (
+            <QuoteTabs
+              quotes={data.quotes || []} currentId={data.quote?.id || 'new'}
+              onOpen={id => leaveIfSafe(() => router.push(hrefOf(id)))}
+            />
+          )}
+          {isVo && data.parentQuote && (
+            <span style={{ fontSize: font.size.xs, color: color.muted }}>
+              Changes {quoteLabel(data.parentQuote)} ({data.parentQuote.id}). It is billed on that quote&apos;s final invoice unless billed on its own.
+            </span>
+          )}
+          {!isVo && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: space.md, alignItems: 'flex-end' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: font.size.xs, color: color.muted, flex: '1 1 260px', maxWidth: 420 }}>
+                What this quote is for
+                <input value={qTitle} disabled={saving} maxLength={80} placeholder="e.g. Electrical works"
+                  onChange={e => setQTitle(e.target.value)}
+                  style={{ height: 40, padding: '0 10px', fontSize: font.size.sm, fontFamily: font.stack, color: color.text, border: `1px solid ${color.border}`, borderRadius: radius.sm }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: font.size.xs, color: color.muted, flex: '0 1 220px' }}>
+                Trade (costs with this tag count here)
+                <select value={qTrade} disabled={saving} onChange={e => setQTrade(e.target.value)}
+                  style={{ height: 40, padding: '0 8px', fontSize: font.size.sm, fontFamily: font.stack, color: color.text, border: `1px solid ${color.border}`, borderRadius: radius.sm, background: color.surface }}>
+                  <option value="">None</option>
+                  {(data.categories || []).filter(c => c.active || c.code === qTrade).map(c => (
+                    <option key={c.code} value={c.code}>{c.code} · {c.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${space.md}px ${space.xxl}px`, alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: space.lg }}>
               <Fact label="Client" value={project.clientName || 'No client (direct job)'} />
@@ -351,6 +408,7 @@ export default function QuoteScreen({ code, voId }) {
               ) : (
                 <>
                   <PaymentSchedule
+                    key={data.quote?.id || 'new'}
                     rows={stages} onChange={setStages} contractSum={totals.contractSum}
                     vos={data.variationOrders || []}
                     dirty={dirty} saved={!!data.quote} disabled={saving}
@@ -361,7 +419,7 @@ export default function QuoteScreen({ code, voId }) {
                   />
                   {data.quote && (
                     <ProgressClaims
-                      key={(data.claims || []).length}
+                      key={`${data.quote.id}-${(data.claims || []).length}`}
                       quote={data.quote} stages={data.schedule?.stages || []} claims={data.claims || []}
                       vos={data.variationOrders || []}
                       block={dirty ? 'Save your changes first.' : ''}
@@ -371,7 +429,7 @@ export default function QuoteScreen({ code, voId }) {
                   <VariationOrderList
                     vos={data.variationOrders || []}
                     onOpen={id => leaveIfSafe(() => router.push(`${quoteHref}/vo/${encodeURIComponent(id)}`))}
-                    onNew={() => leaveIfSafe(() => router.push(`${quoteHref}/vo/new`))}
+                    onNew={() => leaveIfSafe(() => router.push(`${quoteHref}/vo/new?parent=${encodeURIComponent(data.quote.id)}`))}
                     canAdd={!!data.quote} finalBilled={!!data.finalBilled} byClaims={!!data.byClaims}
                   />
                 </>
@@ -423,6 +481,33 @@ export default function QuoteScreen({ code, voId }) {
         />
       )}
     </AppShell>
+  );
+}
+
+/**
+ * The project's quotes as tabs, the open one highlighted, and "+ New quote". Shown even for
+ * one quote, so a second piece of work is one tap away.
+ */
+function QuoteTabs({ quotes, currentId, onOpen }) {
+  const pill = active => ({
+    minHeight: 40, padding: '0 14px', borderRadius: 999, fontSize: font.size.sm, fontFamily: font.stack,
+    fontWeight: active ? 600 : 500, cursor: active ? 'default' : 'pointer',
+    border: `1px solid ${active ? color.primary : color.border}`,
+    background: active ? color.primary : color.surface, color: active ? '#fff' : color.text,
+  });
+  return (
+    <nav aria-label="Quotes on this project" style={{ display: 'flex', gap: space.sm, flexWrap: 'wrap', alignItems: 'center' }}>
+      <span style={{ fontSize: font.size.xs, color: color.muted, marginRight: 4 }}>Quotes</span>
+      {quotes.map(q => (
+        <button key={q.id} type="button" className="qe-btn" aria-current={q.id === currentId ? 'page' : undefined}
+          onClick={() => { if (q.id !== currentId) onOpen(q.id); }} style={pill(q.id === currentId)}
+        >{quoteLabel(q)}</button>
+      ))}
+      {currentId === 'new'
+        ? <span style={{ ...pill(true), display: 'inline-flex', alignItems: 'center' }}>New quote</span>
+        : <button type="button" className="qe-btn" onClick={() => onOpen('new')}
+            style={{ ...pill(false), borderStyle: 'dashed' }}>+ New quote</button>}
+    </nav>
   );
 }
 

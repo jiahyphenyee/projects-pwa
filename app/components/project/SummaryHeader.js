@@ -17,8 +17,14 @@ import { money, FLAG_VARIANT } from './format';
 import ViewSwitch from './ViewSwitch';
 
 export default function SummaryHeader({ project, figures, billing, staleAt }) {
-  const nextStage = billing?.items?.find(i => i.kind === 'stage' && !i.billed) || null;
-  const quoteHref = `/projects/${encodeURIComponent(project.code)}/quote`;
+  // The next stage to bill on any quote still going ahead, and that quote's address
+  const groups = billing?.quotes?.length ? billing.quotes : billing ? [{ quoteId: billing.quoteId, items: billing.items }] : [];
+  const next = groups.filter(g => !g.declined)
+    .map(g => ({ g, stage: (g.items || []).find(i => i.kind === 'stage' && !i.billed) }))
+    .find(x => x.stage) || null;
+  const nextStage = next?.stage || null;
+  const base = `/projects/${encodeURIComponent(project.code)}/quote`;
+  const quoteHref = next?.g.quoteId ? `${base}/${encodeURIComponent(next.g.quoteId)}` : base;
 
   const facts = [
     project.propertyType || null,
