@@ -1,10 +1,17 @@
 'use client';
 
-// The payment schedule card. Shares are edited here and saved with the quote; each stage is
-// billed with "Bill now", or several on one invoice with "Bill stages together". Amounts come from lib/quoteMaths.mjs scheduleAmounts
-// and finalPaymentDue, the same functions the server bills with, so what is shown is what
-// is invoiced. The final row shows its balance of the contract sum, then one line per
-// variation order it settles (additions and omissions), then the total due.
+// The billing card. By default a quote is billed in full when the work is done: one
+// itemised invoice, one button, no plan on screen. "+ Add deposit or stages" reveals the
+// payment plan, where shares are edited and saved with the quote; each stage is billed with
+// "Bill now", or several on one invoice with "Bill stages together". Amounts come from
+// lib/quoteMaths.mjs scheduleAmounts and finalPaymentDue, the same functions the server
+// bills with, so what is shown is what is invoiced. The final row shows its balance of the
+// contract sum, then one line per variation order it settles (additions and omissions),
+// then the total due.
+//
+// A plan is "in use" once any non-final stage has a share or has been billed. Quotes saved
+// before 7 Nov 2026 carry four blank stages (Deposit, Progress payment 1–3); those count as
+// no plan and show the bill-in-full card until a share is given.
 
 import { useState } from 'react';
 import { scheduleAmounts, finalPaymentDue } from '@/lib/quoteMaths.mjs';
@@ -38,10 +45,14 @@ export function fromServerStages(stages) {
   }));
 }
 
+/** A new quote starts with the final payment alone: bill in full when done. */
 export function defaultStages() {
-  return ['Deposit', 'Progress payment 1', 'Progress payment 2', 'Progress payment 3']
-    .map(name => ({ key: stageKey(), id: '', name, sharePct: '', isFinal: false, billed: false }))
-    .concat([{ key: stageKey(), id: '', name: 'Final payment (balance)', sharePct: '', isFinal: true, billed: false }]);
+  return [{ key: stageKey(), id: '', name: 'Final payment (balance)', sharePct: '', isFinal: true, billed: false }];
+}
+
+/** Whether the quote is billed by a plan (any non-final stage with a share, or already billed). */
+export function planInUse(rows) {
+  return rows.some(r => !r.isFinal && (r.billed || Number(r.sharePct) > 0));
 }
 
 /**
@@ -74,17 +85,32 @@ export function computeSchedule(rows, contractSum, vos = []) {
 }
 
 export default function PaymentSchedule({ rows, onChange, contractSum, vos = [], dirty, saved, onBill, disabled, quoteId, onAttached, byClaims = false }) {
+  const [showPlan, setShowPlan] = useState(false);
   const s = computeSchedule(rows, contractSum, vos);
   const nextKey = rows.find(r => !r.billed && (s.amounts.get(r.key) || 0) > 0)?.key;
   const set = (key, change) => onChange(rows.map(r => (r.key === key ? { ...r, ...change } : r)));
 
   function addStage() {
-    const highest = rows.reduce((m, r) => Math.max(m, Number(/^Progress payment (\d+)$/.exec(r.name)?.[1] || 0)), 0);
-    const row = { key: stageKey(), id: '', name: `Progress payment ${highest + 1}`, sharePct: '', isFinal: false, billed: false };
+    const name = rows.some(r => !r.isFinal && /^deposit$/i.test(r.name.trim()))
+      ? `Progress payment ${rows.reduce((m, r) => Math.max(m, Number(/^Progress payment (\d+)$/.exec(r.name)?.[1] || 0)), 0) + 1}`
+      : 'Deposit';
+    const row = { key: stageKey(), id: '', name, sharePct: '', isFinal: false, billed: false };
     const i = rows.findIndex(r => r.isFinal);
     const next = rows.slice();
     next.splice(i === -1 ? next.length : i, 0, row);
     onChange(next);
+  }
+
+  /** "+ Add deposit or stages": show the plan, with a first row to fill in if there is none. */
+  function openPlan() {
+    setShowPlan(true);
+    if (!rows.some(r => !r.isFinal)) addStage();
+  }
+
+  /** Back to bill in full: drop every unbilled non-final row. Only offered when none is billed. */
+  function removePlan() {
+    onChange(rows.filter(r => r.isFinal));
+    setShowPlan(false);
   }
 
   // Why "Bill now" is off for every stage, if it is. Per-stage reasons are in the button title.
@@ -95,10 +121,20 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
     : s.finalNegative ? (s.final?.balance >= 0 ? 'The omissions come to more than what is left to bill.' : 'The contract sum is less than what has already been billed.')
     : '';
 
+  if (!planInUse(rows) && !showPlan) {
+    return (
+      <BillInFull
+        final={rows.find(r => r.isFinal)} schedule={s} block={globalBlock} disabled={disabled}
+        onBill={r => onBill(retryGroup(rows, r))} onAddPlan={openPlan}
+        quoteId={quoteId} onAttached={onAttached} rows={rows}
+      />
+    );
+  }
+
   return (
     <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: `${space.md}px ${space.lg}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: space.sm }}>
-        <h2 style={{ margin: 0, fontSize: font.size.lg, fontWeight: 700 }}>Payment schedule</h2>
+        <h2 style={{ margin: 0, fontSize: font.size.lg, fontWeight: 700 }}>Payment plan</h2>
         <span style={{ fontSize: font.size.xs, color: color.muted }}>Shares of the contract sum. Saved with the quote.</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
@@ -188,6 +224,11 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
             style={{ height: 40, padding: '0 14px', borderRadius: radius.sm, border: `1px dashed ${color.subtle}`, background: color.surface, fontWeight: 600, fontSize: font.size.sm, fontFamily: font.stack, cursor: 'pointer', color: color.text }}
           >+ Add stage</button>
           <span style={{ fontSize: font.size.xs, color: color.muted }}>Shares total {formatPct(s.sharesTotal)}; the final payment takes the rest, plus any variation orders not billed early.</span>
+          {!rows.some(r => !r.isFinal && r.billed) && (
+            <button type="button" className="qe-btn" disabled={disabled} onClick={removePlan}
+              style={{ marginLeft: 'auto', height: 40, padding: '0 10px', border: 0, background: 'none', fontSize: font.size.xs, fontFamily: font.stack, color: color.accent, cursor: 'pointer' }}
+            >Remove plan, bill in full instead</button>
+          )}
         </div>
         {!globalBlock && (
           <BillTogether
@@ -218,6 +259,69 @@ export default function PaymentSchedule({ rows, onChange, contractSum, vos = [],
         )}
         {(dirty || !saved || byClaims) && !s.overAllocated && (
           <span style={{ fontSize: font.size.xs, color: color.accent }}>{globalBlock}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The default billing card: no plan, one invoice for the whole quote when the work is done.
+ * The final stage is the only stage, so its amount is the contract sum plus any variation
+ * orders not billed on their own. Billing goes through the same path as a stage.
+ */
+function BillInFull({ final, schedule: s, block, disabled, onBill, onAddPlan, quoteId, onAttached, rows }) {
+  const amount = final ? (s.amounts.get(final.key) || 0) : 0;
+  const stageBlock = block || (!final ? 'Save the quote first.' : !final.id ? 'Save the quote first.' : amount <= 0 ? 'Nothing to bill yet.' : '');
+  const billed = !!final?.billed;
+  return (
+    <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: `${space.md}px ${space.lg}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: space.sm }}>
+        <h2 style={{ margin: 0, fontSize: font.size.lg, fontWeight: 700 }}>Billing</h2>
+        <span style={{ fontSize: font.size.xs, color: color.muted }}>One itemised invoice for the whole quote when the work is done.</span>
+      </div>
+      <div style={{ padding: `${space.md}px ${space.lg}px`, borderTop: `1px solid ${color.border}`, display: 'flex', flexDirection: 'column', gap: space.md }}>
+        {s.final?.settling.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: font.size.xs, color: color.muted }}>
+            <FinalLine label="Contract sum" amount={s.final.balance} />
+            {s.final.settling.map(vo => (
+              <FinalLine key={vo.id} label={voSettlementDescription(vo)} amount={vo.contractSum} />
+            ))}
+            <FinalLine label="Total due" amount={s.final.due} strong />
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: space.md, flexWrap: 'wrap' }}>
+          {billed ? (
+            <span title={final.billedAt ? `Billed ${final.billedAt}` : ''} style={{
+              display: 'inline-block', padding: '8px 12px', borderRadius: radius.sm, fontSize: font.size.sm,
+              fontWeight: 600, background: color.successLight, color: color.success,
+            }}>Billed in full · {final.xeroInvoiceNumber} · {formatAmount(final.billedAmount ?? amount)}</span>
+          ) : (
+            <button type="button" disabled={disabled || !!stageBlock} title={stageBlock}
+              onClick={() => onBill(final)} className="qe-btn"
+              style={{
+                height: 44, padding: '0 18px', borderRadius: radius.sm, fontWeight: 600, fontSize: font.size.sm,
+                fontFamily: font.stack, cursor: 'pointer', border: `1px solid ${color.primary}`,
+                background: color.primary, color: '#fff', opacity: disabled || stageBlock ? 0.6 : 1,
+              }}
+            >{final && attemptInFlight(final) ? 'Retry bill' : `Bill in full · ${formatAmount(amount)}`}</button>
+          )}
+          {!billed && (
+            <button type="button" className="qe-btn" disabled={disabled} onClick={onAddPlan}
+              style={{ height: 44, padding: '0 10px', border: 0, background: 'none', fontSize: font.size.sm, fontFamily: font.stack, color: color.accent, cursor: 'pointer' }}
+            >+ Add deposit or stages</button>
+          )}
+        </div>
+        {!billed && stageBlock && (
+          <span style={{ fontSize: font.size.xs, color: s.finalNegative ? color.danger : color.accent }}>{stageBlock}</span>
+        )}
+        {rows.some(r => r.billed) && !rows.some(r => r.pdfAttachedAt) && (
+          <AttachPdf quoteId={quoteId} onAttached={onAttached} />
+        )}
+        {rows.some(r => r.pdfAttachedAt) && (
+          <span style={{ fontSize: font.size.xs, color: color.muted }}>
+            Quote PDF attached to {rows.find(r => r.pdfAttachedAt).xeroInvoiceNumber} in Xero.
+          </span>
         )}
       </div>
     </div>

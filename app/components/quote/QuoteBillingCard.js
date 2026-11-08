@@ -22,7 +22,7 @@ export default function QuoteBillingCard({ projectCode, summary }) {
       title="Quote and billing"
       subtitle={has
         ? `Contract sum $${formatAmount(summary.contractSum)} · billed $${formatAmount(summary.billed)} · to bill $${formatAmount(summary.unbilled)}`
-        : 'Write the quote, set the payment schedule, bill stages to Xero'}
+        : 'Write the quote, then bill it in full to Xero, or by deposit and stages'}
       action={{ href, label: has ? 'Open quote' : 'Write the quote' }}
     >
       {summary?.error && (
